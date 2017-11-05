@@ -155,18 +155,24 @@ Metaplex.primitives = {
 		
 		list() {
 			var out = []
-			out.push("cylinder "+this.height+" "+this.radius)
+			var group = new Metaplex.group();
+			group.add(new Metaplex.primitives.cylinder(this.height,this.radius))
 			if (this.angle <= 90) {
 				if (this.angle < 90) {
-					out.push("& translate 0 0 -0.01 rotz "+(this.angle-90)+" cube "+(this.radius*1.02))
+					group.and(new Metaplex.primitives.cube(this.radius*1.02).rotz(this.angle-90).translate(0,0,-0.01))
 				}				
-				out.push("& cube "+this.radius*1.02)
+				group.and(new Metaplex.primitives.cube(this.radius*1.02))
+			} else if (this.angle <= 180) {
+				group.sub(new Metaplex.primitives.cube(this.radius*2*1.02).translate(-this.radius*1.02,-this.radius*2*1.02,-0.01))
+				if (this.angle < 180) {
+					group.sub(new Metaplex.primitives.cube(this.radius*2*1.02).translate(-this.radius*1.02,0,-0.01).rotz(this.angle))
+				}
 			} else {
-				throw "Error: Angles > 90 are currently not supported. Angle = "+this.angle
+				throw "Error: Angles > 180 are currently not supported. Angle = "+this.angle
 			}
 			
 			
-			return Metaplex.listTransforms(this)+"{\n"+out.join("\n")+"\n}"
+			return Metaplex.listTransforms(this)+group.list();
 			
 		}
 		
@@ -190,6 +196,76 @@ Metaplex.primitives = {
 		
 		list() {
 			return Metaplex.listTransforms(this)+"circle "+this.radius
+		}		
+	}
+	,polygon:class extends Metaplex.solid {
+		constructor(points) {
+			super();
+			this.points = points
+		}
+		
+		list() {
+			return Metaplex.listTransforms(this)+"polygon "+JSON.stringify({points:this.points})
+		}
+		
+	}
+	,isoThreads:class extends Metaplex.solid {
+		constructor(radius,pitch,length,options) {
+			super()
+			this.radius = radius
+			this.pitch = pitch
+			this.length = length
+			this.options = options
+		}
+		
+		
+		list() {
+			return Metaplex.listTransforms(this)+"threads_dk "+this.radius+" "+this.pitch+" "+this.length+" "+JSON.stringify(this.options)		
+		}		
+	}
+	,threads:class extends Metaplex.solid {
+		constructor(helixRadius,threadRadius,pitch,length,options) {
+			super()
+			this.helixRadius = helixRadius
+			this.threadRadius = threadRadius
+			this.options = options
+			this.pitch = pitch
+			this.length = length
+		}
+		
+		list() {
+			var twist = -(this.length/this.pitch)*360
+			var stretch =1/(Math.sin(Math.atan2(this.pitch,2*Math.PI*this.helixRadius)))
+			var points = []
+			var npoints = this.options.fn
+			var helixRadius = this.helixRadius
+			var threadRadius =this.threadRadius
+			for (var i = 0; i<npoints; i++) {
+				var circleangle = 2*Math.PI*(i/npoints)
+				var x = threadRadius*Math.cos(circleangle)
+				var y = threadRadius*Math.sin(circleangle)
+				x+=helixRadius
+				
+				var r = Math.sqrt(x*x+y*y)
+				var theta = Math.atan2(y,x)
+				
+				theta *= stretch //Scale the polygon to account for the stretching that occurs in twisting
+				
+				x = r*Math.cos(theta)
+				y = r*Math.sin(theta)
+				points.push([x,y])				
+			}
+			
+			var startAngle = (threadRadius*stretch)/(2*Math.PI*helixRadius)*360 //Angle from which the threads are fully not cross sectioned
+			//Make two wedges to make it less likely for the wedge to cut off the bottom of the next layer of threads. One the second wedge is shorter.
+			var startWedge1 = new Metaplex.primitives.wedge(threadRadius*2+0.02,helixRadius+threadRadius+0.1,startAngle).translate(0,0,-0.01)
+			var startWedge2 = new Metaplex.primitives.wedge(threadRadius*1.1+0.02,helixRadius+threadRadius+0.1,startAngle).translate(0,0.0001,-0.01).rotz(-startAngle) //Notice this is slightly more than half as tall as the other wedge
+			
+			var endAngle = twist-startAngle //Angle at which the threads end at the top
+			var endWedge1 = new Metaplex.primitives.wedge(threadRadius*2+0.02,helixRadius+threadRadius+0.1,startAngle).translate(0,0,this.length-(threadRadius*2+0.01)).rotz(-endAngle-startAngle*2+0.1)
+			var endWedge2 = new Metaplex.primitives.wedge(threadRadius*1.1+0.02,helixRadius+threadRadius+0.1,startAngle).translate(0,0,this.length-(threadRadius*1.1+0.01)).rotz(-endAngle-startAngle)
+			
+			return Metaplex.listTransforms(this)+"{\n+ linear_extrude "+this.length+" "+10+" "+twist+" "+1+" polygon "+JSON.stringify({points:points})+"\n- "+startWedge1.list()+"\n- "+startWedge2.list()+"\n- "+endWedge1.list()+"\n- "+endWedge2.list()+"\n}"
 		}		
 	}
 	
