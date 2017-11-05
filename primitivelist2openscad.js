@@ -1,4 +1,7 @@
 const fs = require("fs")
+const path = require("path")
+
+var headers = []
 
 
 var operators = {
@@ -29,6 +32,12 @@ var operators = {
 				return "rotate_extrude(convexity="+convexity+") "+ob
 			}
 		}
+	}
+	,"linear_extrude":{
+		args:[0,0,0,0,1]
+		,parse:function(height,convexity,twist,scale,ob) {
+			return "linear_extrude(height = "+height+",convexity="+convexity+",twist="+twist+",scale="+scale+") "+ob
+		}		
 	}
 	,"rotz":{
 		args:[0,1]
@@ -72,6 +81,13 @@ var operators = {
 			return "circle("+r+")"
 		}
 	}
+	,"polygon":{
+		args:[0]
+		,parse:function(obj) {
+			obj = JSON.parse(obj)
+			return "polygon("+JSON.stringify(obj.points)+")"
+		}
+	}
 	,"&":{
 		args:[1,1]
 		,parse:function(ob1,ob2) {
@@ -84,6 +100,27 @@ var operators = {
 			return "$fn = "+fn
 		}
 	}
+	,"threads_dk":{
+		args:[0,0,0,0]
+		,parse:function(radius,pitch,length,options) {
+			addDependency("threads.scad")
+			var options = JSON.parse(options)
+			var keys = Object.keys(options)
+			var out = "metric_thread("+radius*2+","+pitch+","+length
+			for (var i = 0; i<keys.length; i++) {
+				out += ","+keys[i]+"="+options[keys[i]]
+			}
+			out += ")"
+			return out
+		}
+	}
+}
+
+function addDependency(name) {
+	var dependency = "use <"+path.resolve(path.dirname(process.argv[1]),"./openscad_modules/"+name)+">"
+	if (headers.indexOf(dependency) == -1) {
+		headers.push(dependency)
+	}	
 }
 
 
@@ -145,7 +182,7 @@ function err(ln,str) {
 
 
 
-function parse(data) {
+function parse(data,isRoot) { //isParent is only true if this is the root call in the recursive parse tree
 	var lines = splitData(data);
 	
 	if (debug) {
@@ -203,7 +240,10 @@ function parse(data) {
 	var intersection = out_intersection.length != 0
 	var difference = out_difference.length != 0
 	
-	var out = resolution
+	var out = resolution;
+	if (isRoot) {
+		out += "\n"+headers.join("\n")+"\n"
+	}
 	if (union && !intersection && !difference) {
 		out += "union() {\n"+out_union.join("\n")+"\n}"
 	} else if (!union && intersection && !difference) {
@@ -214,13 +254,14 @@ function parse(data) {
 		out += "difference() {\nunion() {\n"+out_union.join("\n")+"\n}\n"+out_difference.join("\n")+"\n}"
 	} else {
 		out += "intersection() {\ndifference() {\nunion() {\n"+out_union.join("\n")+"\n}\n"+out_difference.join("\n")+"\n}\n"+out_intersection.join("\n")+"\n}";
-	} 
+	}
+	
 	
 
 	out = out.split("\n");
 	for (var i = 0; i<out.length; i++) {
 		var lastChar = out[i].substr(-1)
-		if (!lastChar.match(/[{}\s;]/g) && out[i].length != 0) {
+		if (!lastChar.match(/[{}\s;<>]/g) && out[i].length != 0) {
 			out[i] += ";"
 		}
 	}
@@ -266,7 +307,8 @@ function splitData(d) {
 if (process.argv[2] == "--help" || process.argv.length < 3 || process.length > 4) {
 	console.log("Usage: primitivelist2openscad.js <primitive list>")
 } else {
-	var PATH = process.argv[2]
+	
+	var PATH = path.resolve(process.argv[2])
 	var flags = process.argv.slice(3)
 	var shouldWatch = flags.indexOf("--watch") != -1
 	var debug = flags.indexOf("--debug") != -1
@@ -294,7 +336,7 @@ function parseAndWrite() {
 	var data;
 	var type = getExtension(PATH)
 	if (type == "js") {
-		var modulePath = "./"+PATH
+		var modulePath = PATH//"./"+PATH
 		delete purgeCache(modulePath)
 		console.log("Reexecuting "+modulePath)
 		data = require(modulePath)
@@ -304,7 +346,7 @@ function parseAndWrite() {
 		console.error("File type '"+type+"' not supported.")
 	}
 
-	fs.writeFileSync(removeExtension(PATH)+".scad",parse(data))
+	fs.writeFileSync(removeExtension(PATH)+".scad",parse(data,true))
 }
 
 
