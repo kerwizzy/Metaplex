@@ -1,3 +1,6 @@
+const fs = require("fs")
+
+
 var Metaplex = {
 	solid:class {
 		constructor() {
@@ -33,6 +36,10 @@ var Metaplex = {
 			this.transformStack.push("scale "+sx+" "+sy+" "+sz)
 			
 			return this
+		}
+		
+		save(path) {
+			Metaplex.save(this.list(),path)
 		}
 		
 	}
@@ -285,8 +292,32 @@ Metaplex.joinLineList = function(lines,prefix) {
 	}
 }
 
-Metaplex.save.scad = {
-	parse:require("export/scad.js")
+Metaplex.utils = {
+	removeExtension(path) {
+		path = path.split(".")
+		path.pop();
+		return path.join(".")
+	}
+
+	,getExtension(path) {
+		path = path.split(".")
+		return path.pop();
+	}	
+}
+
+Metaplex.save = function(list,path) {
+	var type = Metaplex.utils.getExtension(path)
+	Metaplex.exporters[type].save(list,path)
+}
+
+Metaplex.exporters = {}
+
+
+Metaplex.exporters.scad = {
+	parse:require(__dirname+"/exporters/scad.js")
+	,save:function(list,path,options) {
+		fs.writeFileSync(path,Metaplex.exporters.scad.parse(list,options),"utf8")
+	}
 }
 
 module.exports = Metaplex

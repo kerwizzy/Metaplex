@@ -1,5 +1,7 @@
 const fs = require("fs")
 const path = require("path")
+const colors = require("colors")
+
 
 var headers = []
 
@@ -126,7 +128,7 @@ function addDependency(name) {
 
 function parseline(line,linenum,recursiveformat) {//line must be a string
 	if (debug) {
-		console.log("PARSING LINE: "+line)
+		debuginfo("PARSING LINE: "+line)
 	}
 	var str
 	var len
@@ -177,7 +179,11 @@ function untokenize(str) {
 }
 
 function err(ln,str) {
-	console.error(PATH+" line "+ln+": "+str)
+	console.error(colors.red("SCAD EXPORT\t"+" line "+ln+": "+str))
+}
+
+function debuginfo(str) {
+	console.log(colors.green("SCAD EXPORT\t"+str))
 }
 
 
@@ -186,9 +192,9 @@ function parse(data,isRoot) { //isParent is only true if this is the root call i
 	var lines = splitData(data);
 	
 	if (debug) {
-		console.log("LINES")
-		console.log("\\n\t"+lines.join("\n\\n\t"))
-		console.log("-----------------------")
+		debuginfo("LINES")
+		debuginfo("\\n\t"+lines.join("\n\\n\t"))
+		debuginfo("-----------------------")
 	}
 	
 	var out_union = []
@@ -304,105 +310,32 @@ function splitData(d) {
 	return lines
 }
 
-if (process.argv[2] == "--help" || process.argv.length < 3 || process.length > 4) {
-	console.log("Usage: primitivelist2openscad.js <primitive list>")
-} else {
-	
-	var PATH = path.resolve(process.argv[2])
-	var flags = process.argv.slice(3)
-	var shouldWatch = flags.indexOf("--watch") != -1
-	var debug = flags.indexOf("--debug") != -1
-	if (shouldWatch) {
-		console.log("Watching "+PATH)
-		var LASTMTIME = 0
-		setInterval(function() {
-			var time = fs.statSync(PATH).mtime.getTime()
-			if (time != LASTMTIME) {
-				parseAndWrite();
-				LASTMTIME = time
+const DEFAULT_OPTIONS = {
+	debug:false	
+}
+
+function initparse(data,options) {
+	options = combineOptionsListWithDefaults(options,DEFAULT_OPTIONS)
+	debug = options.debug
+	return parse(data,true)	
+}
+
+function combineOptionsListWithDefaults(options,defaults) { //WARNING: this function will NOT work for objects that have more than one level.
+	var keys = Object.keys(defaults)
+	var out = {}
+	if (options) {
+		for (var i = 0; i<keys.length; i++) {
+			var key = keys[i]
+			if (typeof options[key] != "undefined"){
+				out[key] = options[key]
+			} else {
+				out[key] = defaults[key]
 			}
-		},500)
+		}
+		return out
 	} else {
-		parseAndWrite();
+		return defaults
 	}
-	
 }
 
-
-
-function parseAndWrite() {
-	console.log("Updating.")
-
-	var data;
-	var type = getExtension(PATH)
-	if (type == "js") {
-		var modulePath = PATH//"./"+PATH
-		delete purgeCache(modulePath)
-		console.log("Reexecuting "+modulePath)
-		data = require(modulePath)
-	} else if (type == "txt") {
-		data = fs.readFileSync(PATH,"utf8")
-	} else {
-		console.error("File type '"+type+"' not supported.")
-	}
-
-	fs.writeFileSync(removeExtension(PATH)+".scad",parse(data,true))
-}
-
-
-//THE BELOW TWO FUNCTIONS FROM https://stackoverflow.com/questions/9210542/node-js-require-cache-possible-to-invalidate
-/**
- * Removes a module from the cache
- */
-function purgeCache(moduleName) {
-    // Traverse the cache looking for the files
-    // loaded by the specified module name
-    searchCache(moduleName, function (mod) {
-        delete require.cache[mod.id];
-    });
-
-    // Remove cached paths to the module.
-    // Thanks to @bentael for pointing this out.
-    Object.keys(module.constructor._pathCache).forEach(function(cacheKey) {
-        if (cacheKey.indexOf(moduleName)>0) {
-            delete module.constructor._pathCache[cacheKey];
-        }
-    });
-};
-
-/**
- * Traverses the cache to search for all the cached
- * files of the specified module name
- */
-function searchCache(moduleName, callback) {
-    // Resolve the module identified by the specified name
-    var mod = require.resolve(moduleName);
-
-    // Check if the module has been resolved and found within
-    // the cache
-    if (mod && ((mod = require.cache[mod]) !== undefined)) {
-        // Recursively go over the results
-        (function traverse(mod) {
-            // Go over each of the module's children and
-            // traverse them
-            mod.children.forEach(function (child) {
-                traverse(child);
-            });
-
-            // Call the specified callback providing the
-            // found cached module
-            callback(mod);
-        }(mod));
-    }
-};
-
-function removeExtension(path) {
-	path = path.split(".")
-	path.pop();
-	return path.join(".")
-}
-
-function getExtension(path) {
-	path = path.split(".")
-	return path.pop();
-}
+module.exports = initparse
