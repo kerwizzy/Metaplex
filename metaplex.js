@@ -285,4 +285,8 @@ Metaplex.joinLineList = function(lines,prefix) {
 	}
 }
 
+Metaplex.save.scad = {
+	parse:require("export/scad.js")
+}
+
 module.exports = Metaplex
