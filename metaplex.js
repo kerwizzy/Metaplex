@@ -12,15 +12,31 @@ var Metaplex = {
 		}
 		
 		translate(dx,dy,dz) {
+			if (!dz) {
+				dz = 0;
+			}
+			
 			this.transformStack.push("translate "+dx+" "+dy+" "+dz)
 			
 			return this
+		}
+		
+		rotx(rx) {
+			return this.rotate(rx,0,0)
+		}
+		
+		roty(ry) {
+			return this.rotate(0,ry,0)
 		}
 		
 		rotz(rz) {
 			this.transformStack.push("rotz "+rz)
 			return this
 		}
+		
+		copy() {
+			return new Metaplex.primitives.list(this.list())
+		}		
 		
 		rotate(rx,ry,rz) {
 			if (rx == 0 && ry == 0) {
@@ -38,8 +54,50 @@ var Metaplex = {
 			return this
 		}
 		
-		save(path) {
-			Metaplex.save(this.list(),path)
+		offset(amount,mode) {
+			if (mode == "radius") {
+				this.transformStack.push("offset r="+amount)
+			} else if (mode == "chamfer") {
+				this.transformStack.push("offset delta="+amount+",chamfer=true")
+			} else {
+				this.transformStack.push("offset delta="+amount)
+			}
+			return this
+		}
+		
+		linear_extrude(height,twist,scale) {
+			var convexity = 2
+			if (!scale) {
+				scale = 1
+			}
+			if (!twist) {
+				twist = 0
+			}
+			this.transformStack.push("linear_extrude "+height+" "+convexity+" "+twist+" "+JSON.stringify(scale))
+			return this
+		}
+		
+		display_debug() {
+			this.transformStack.push("#");
+			return this
+		}
+		
+		color(r,g,b,a) {
+			if (typeof r == "string") {
+				var name = r
+				var alpha = g
+				if (typeof alpha == "undefined") {
+					alpha = 1
+				}
+				this.transformStack.push("colorname "+name+" "+alpha)
+			} else {
+				this.transformStack.push("color "+r/255+" "+g/255+" "+b/255+" "+a);
+			}
+			return this
+		}
+		
+		save(path,options) {
+			Metaplex.save(this.list(),path,options)
 		}
 		
 	}
@@ -89,17 +147,37 @@ Metaplex.group=class extends Metaplex.solid {
 
 
 Metaplex.primitives = {
-	sphere:class extends Metaplex.solid{			
+	importPath:class extends Metaplex.solid {
+		constructor(path,convexity) {
+			super()
+			this.path = path
+			this.convexity = convexity
+		}
+		
+		list() {
+			return Metaplex.listTransforms(this)+"import "+this.path+" "+this.convexity
+		}		
+	}
+	,list:class extends Metaplex.solid {
+		constructor(list) {
+			super()
+			this.data = list
+		}
+		
+		list() {
+			return Metaplex.listTransforms(this)+this.data
+		}		
+	}
+	,sphere:class extends Metaplex.solid{			
 		constructor(radius) {
 			super()
 			this.radius = radius
-			
 		}
 		
 		list() {
 			return Metaplex.listTransforms(this)+"sphere "+this.radius
 		}
-	}
+	}	
 	,cube:class extends Metaplex.solid{
 		constructor(size) {
 			super()
@@ -205,6 +283,48 @@ Metaplex.primitives = {
 			return Metaplex.listTransforms(this)+"circle "+this.radius
 		}		
 	}
+	,square:class extends Metaplex.solid {
+		constructor(size) {
+			super();
+			this.size = size
+		}
+		
+		list() {
+			return Metaplex.listTransforms(this)+"square "+this.size
+		}		
+	}
+	,arc:class extends Metaplex.solid {
+		constructor(radius,angle,center) {
+			super();
+			this.radius = radius
+			this.angle = angle
+			if (center) {
+				this.rotz(-this.angle/2)
+			}
+		}
+		
+		list() {
+			var out = []
+			var group = new Metaplex.group();
+			group.add(new Metaplex.primitives.circle(this.radius))
+			if (this.angle <= 90) {
+				if (this.angle < 90) {
+					group.and(new Metaplex.primitives.square(this.radius*1.02).rotz(this.angle-90))
+				}				
+				group.and(new Metaplex.primitives.square(this.radius*1.02))
+			} else if (this.angle <= 180) {
+				group.sub(new Metaplex.primitives.square(this.radius*2*1.02).translate(-this.radius*1.02,-this.radius*2*1.02,0))
+				if (this.angle < 180) {
+					group.sub(new Metaplex.primitives.square(this.radius*2*1.02).translate(-this.radius*1.02,0,0).rotz(this.angle))
+				}
+			} else {
+				throw "Error: Angles > 180 are currently not supported. Angle = "+this.angle
+			}
+			
+			
+			return Metaplex.listTransforms(this)+group.list();
+		}		
+	}
 	,polygon:class extends Metaplex.solid {
 		constructor(points) {
 			super();
@@ -302,12 +422,22 @@ Metaplex.utils = {
 	,getExtension(path) {
 		path = path.split(".")
 		return path.pop();
-	}	
+	}
+	
+	,radiansToDegrees(r) {
+		return r/(2*Math.PI)*360
+	}
+	,degreesToRadians(d) {
+		return d/360*2*Math.PI
+	}
+	,slopeStretch(m) {
+		return 1/(Math.sin(Math.atan(m)))
+	}
 }
 
-Metaplex.save = function(list,path) {
+Metaplex.save = function(list,path,options) {
 	var type = Metaplex.utils.getExtension(path)
-	Metaplex.exporters[type].save(list,path)
+	Metaplex.exporters[type].save(list,path,options)
 }
 
 Metaplex.exporters = {}
@@ -318,6 +448,19 @@ Metaplex.exporters.scad = {
 	,save:function(list,path,options) {
 		fs.writeFileSync(path,Metaplex.exporters.scad.parse(list,options),"utf8")
 	}
+}
+
+Metaplex.watch = {
+	send:function(msg) {
+		process.send(msg)		
+	}	
+}
+
+Metaplex.addDependency = function(path) {
+	Metaplex.watch.send({
+		cmd:"addDependency"
+		,path:path
+	})
 }
 
 module.exports = Metaplex
