@@ -47,6 +47,24 @@ var operators = {
 			return "rotate("+z+") "+ob
 		}
 	}
+	,"#":{
+		args:[1]
+		,parse:function(ob) {
+			return "# "+ob
+		}		
+	}
+	,"color":{
+		args:[0,0,0,0,1]
+		,parse:function(r,g,b,a,ob) {
+			return "color(["+r+","+g+","+b+","+a+"]) "+ob
+		}		
+	}
+	,"colorname":{
+		args:[0,0,1]
+		,parse:function(name,alpha,ob) {
+			return 'color("'+name+'",'+alpha+') '+ob
+		}		
+	}
 	,"cylinder":{
 		args:[0,0]
 		,parse:function(h,r) {
@@ -83,6 +101,18 @@ var operators = {
 			return "circle("+r+")"
 		}
 	}
+	,"square":{
+		args:[0]
+		,parse:function(size) {
+			return "square("+size+")"
+		}
+	}
+	,"offset":{
+		args:[0,1]
+		,parse:function(args,ob) {
+			return "offset("+args+") "+ob
+		}
+	}
 	,"polygon":{
 		args:[0]
 		,parse:function(obj) {
@@ -100,6 +130,13 @@ var operators = {
 		args:[0]
 		,parse:function(fn) {
 			return "$fn = "+fn
+		}
+	}
+	,"import":{
+		args:[0,0]
+		,parse:function(path,convexity) {
+			if (debug) debuginfo("importing path "+path);
+			return 'import("'+path+'",convexity='+convexity+')'
 		}
 	}
 	,"threads_dk":{
@@ -159,7 +196,7 @@ function parseline(line,linenum,recursiveformat) {//line must be a string
 			
 			str = op.parse.apply(null,args)
 		} else {
-			err(linenum,"Operator or primitive "+cmd+" is not currently supported. Aborting. line = "+line)
+			err(linenum,"Operator or primitive \""+cmd+"\" is not currently supported. Aborting. line = "+line)
 			process.exit();
 		}
 	}
@@ -179,11 +216,11 @@ function untokenize(str) {
 }
 
 function err(ln,str) {
-	console.error(colors.red("SCAD EXPORT\t"+" line "+ln+": "+str))
+	console.error(colors.red(colors.inverse("SCAD EXPORT")+"\t"+" line "+ln+": "+str))
 }
 
 function debuginfo(str) {
-	console.log(colors.green("SCAD EXPORT\t"+str))
+	console.log(colors.green(colors.inverse("SCAD EXPORT")+"\t"+str))
 }
 
 
