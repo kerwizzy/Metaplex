@@ -5,153 +5,178 @@ const colors = require("colors")
 
 var headers = []
 
-
 var operators = {
 	"translate":{
-		args:[0,0,0,1]
-		,parse:function(x,y,z,ob) {
-			return "translate(["+x+","+y+","+z+"]) "+ob
-		}
+		parse(o,l) {
+			return "translate(["+o.x+","+o.y+","+o.z+"]) "+parse(o,l)
+		}	
 	}
 	,"rotate":{
-		args:[0,0,0,1]
-		,parse:function(x,y,z,ob) {
-			return "rotate(["+x+","+y+","+z+"]) "+ob
-		}
+		parse(o,l) {
+			if (o.x == 0 && o.y == 0) {
+				return "rotate("+o.z+") "+parse(o,l)
+			} else {
+				return "rotate(["+o.x+","+o.y+","+o.z+"]) "+parse(o,l)
+			}
+		}		
 	}
 	,"scale":{
-		args:[0,0,0,1]
-		,parse:function(x,y,z,ob) {
-			return "scale(["+x+","+y+","+z+"]) "+ob
+		parse(o,l) {
+			return "scale(["+o.x+","+o.y+","+o.z+"]) "+parse(o,l)
+		}		
+	}
+	,"linear_extrude":{
+		parse(o,l) {
+			return "linear_extrude(height="+o.height+",convexity=10,twist="+o.twist+",scale="+o.scale+") {\n"+parse(o,l)+"\n}"
 		}
 	}
 	,"rotate_extrude":{
-		args:[0,0,1]
-		,parse:function(angle,convexity,ob) {
-			if (angle != 360) {
-				return "rotate_extrude(angle="+angle+",convexity="+convexity+") "+ob
-			} else {
-				return "rotate_extrude(convexity="+convexity+") "+ob
-			}
-		}
-	}
-	,"linear_extrude":{
-		args:[0,0,0,0,1]
-		,parse:function(height,convexity,twist,scale,ob) {
-			return "linear_extrude(height = "+height+",convexity="+convexity+",twist="+twist+",scale="+scale+") "+ob
-		}		
-	}
-	,"rotz":{
-		args:[0,1]
-		,parse:function(z,ob) {
-			return "rotate("+z+") "+ob
-		}
-	}
-	,"#":{
-		args:[1]
-		,parse:function(ob) {
-			return "# "+ob
-		}		
-	}
-	,"color":{
-		args:[0,0,0,0,1]
-		,parse:function(r,g,b,a,ob) {
-			return "color(["+r+","+g+","+b+","+a+"]) "+ob
-		}		
-	}
-	,"colorname":{
-		args:[0,0,1]
-		,parse:function(name,alpha,ob) {
-			return 'color("'+name+'",'+alpha+') '+ob
-		}		
-	}
-	,"cylinder":{
-		args:[0,0]
-		,parse:function(h,r) {
-			return "cylinder("+h+",r="+r+")"
-		}
-	}
-	,"cone":{
-		args:[0,0,0]
-		,parse:function(h,r1,r2) {
-			return "cylinder("+h+","+r1+","+r2+")"
+		parse(o,l) {
+			return "rotate_extrude(angle="+o.angle+",convexity=2) {\n"+parse(o,l)+"\n}"
 		}
 	}
 	,"cube":{
-		args:[0,0,0]
-		,parse:function(s) {
-			return "cube("+s+")"
-		}
+		parse(o,l) {
+			return "cube("+o.size+")"
+		}		
 	}
-	,"box":{
-		args:[0,0,0]
-		,parse:function(w,d,h) {
-			return "cube(["+w+","+d+","+h+"])"
+	,"cylinder":{
+		parse(o,l) {
+			if (typeof o.radius == "undefined") {
+				err("Radius is undefined. "+l.errtext)
+			}
+			return "cylinder(h="+o.height+",r="+o.radius+")"
 		}
 	}
 	,"sphere":{
-		args:[0]
-		,parse:function(r) {
-			return "sphere("+r+")"
+		parse(o,l) {
+			return "sphere("+o.radius+")"
 		}
 	}
-	,"circle":{
-		args:[0]
-		,parse:function(r) {
-			return "circle("+r+")"
+	,"box":{
+		parse(o,l) {
+			return "cube(["+o.width+","+o.depth+","+o.height+"])"
+		}
+	}
+	,"cone":{
+		parse(o,l) {
+			return "cylinder(h="+o.height+",r1="+o.radius1+",r2="+o.radius2+")"
 		}
 	}
 	,"square":{
-		args:[0]
-		,parse:function(size) {
-			return "square("+size+")"
+		parse(o,l) {
+			return "square("+o.size+")"
 		}
 	}
-	,"offset":{
-		args:[0,1]
-		,parse:function(args,ob) {
-			return "offset("+args+") "+ob
+	,"circle":{
+		parse(o,l) {
+			return "circle("+o.radius+")"
 		}
 	}
 	,"polygon":{
-		args:[0]
-		,parse:function(obj) {
-			obj = JSON.parse(obj)
-			return "polygon("+JSON.stringify(obj.points)+")"
+		parse(o,l) {
+			return "polygon("+JSON.stringify(o.points)+")"
 		}
 	}
-	,"&":{
-		args:[1,1]
-		,parse:function(ob1,ob2) {
-			return "intersection() {\n"+ob1+"\n"+ob2+"\n}"
+	,"union":{
+		parse(o,l) {
+			return "union() {\n"+parse(o,l,"child1")+"\n"+parse(o,l,"child2")+"\n}"
+		}
+	}
+	,"difference":{
+		parse(o,l) {
+			return "difference() {\n"+parse(o,l,"child1")+"\n"+parse(o,l,"child2")+"\n}"
+		}
+	}
+	,"intersection":{
+		parse(o,l) {
+			return "intersection() {\n"+parse(o,l,"child1")+"\n"+parse(o,l,"child2")+"\n}"
+		}
+	}
+	,"offset":{
+		parse(o,l) {
+			var out;
+			if (o.mode == "radius") {
+				out = "offset(r="+o.distance+")"
+			} else if (o.mode == "delta") {
+				out = "offset(delta="+o.distance+")"
+			} else if (o.mode == "chamfer") {
+				out = "offset(delta="+o.distance+",chamfer=true)"
+			} else {
+				err("Offset mode "+o.mode+" is not supported.")
+			}
+			return out+" "+parse(o,l)
 		}
 	}
 	,"$fn":{
-		args:[0]
-		,parse:function(fn) {
-			return "$fn = "+fn
+		parse(o,l) {
+			return "{\n$fn="+o.fn+"\n"+parse(o,l)+"\n}"
+		}
+	}
+	,"colorname":{
+		parse(o,l) {
+			return 'color("'+o.name+'",'+o.alpha+') '+parse(o,l)
+		}
+	}
+	,"colorrgba":{
+		parse(o,l) {
+			return "color(["+o.r/255+","+o.g/255+","+o.b/255+","+o.a/255+"])"
 		}
 	}
 	,"import":{
-		args:[0,0]
-		,parse:function(path,convexity) {
-			if (debug) debuginfo("importing path "+path);
-			return 'import("'+path+'",convexity='+convexity+')'
+		parse(o,l) {
+			return 'import("'+o.path+'",convexity='+10+')'
 		}
 	}
-	,"threads_dk":{
-		args:[0,0,0,0]
-		,parse:function(radius,pitch,length,options) {
-			addDependency("threads.scad")
-			var options = JSON.parse(options)
-			var keys = Object.keys(options)
-			var out = "metric_thread("+radius*2+","+pitch+","+length
-			for (var i = 0; i<keys.length; i++) {
-				out += ","+keys[i]+"="+options[keys[i]]
-			}
-			out += ")"
-			return out
+	,"empty":{
+		parse(o,l) {
+			return ""
 		}
+	}
+}
+
+class Location {
+	constructor(level,stack) {
+		if (!level) {
+			level = 0;
+		}
+		if (!stack) {
+			stack = []
+		}
+		this.level = level;
+		this.stack = stack
+	}
+	
+	push(tag) {
+		var stack = this.stack.slice(0)
+		stack.push(tag)
+		return new Location(this.level+1,stack)
+	}
+	
+	get errtext() {
+		return this.stack.join(",")
+	}
+}
+
+function parse(obj,loc,tag) {
+	if (!loc) {
+		loc = new Location()
+	} else {
+		if (!tag) {
+			tag = "child"
+		}
+		loc = loc.push(obj.type)
+		obj = obj[tag]
+	}
+	var type = obj.type
+	if (operators[type]) {
+		try {
+			return operators[type].parse(obj,loc)
+		} catch(error) {
+			err(error+", loc = "+loc.errtext)
+		}
+	} else {
+		err('Internal Error: Operator or primitive "'+type+'" is currently not supported. loc ='+loc.errtext)
 	}
 }
 
@@ -162,189 +187,14 @@ function addDependency(name) {
 	}	
 }
 
-
-function parseline(line,linenum,recursiveformat) {//line must be a string
-	if (debug) {
-		debuginfo("PARSING LINE: "+line)
-	}
-	var str
-	var len
-	if (line.substr(0,1) == "{") {
-		str = parse(line.substr(1,line.length-2))
-		len = tokenize(line).length //TODO: this len value takes the WHOLE line. Thus won't work if have multiple subblocks.
-	} else {
-		line= tokenize(line)		
-		var cmd = line[0]
-		var l = 1;
-		if (operators[cmd]) {
-			var op = operators[cmd]
-			var argtypes = op.args;
-			var args = []
-			for (var i = 0; i<argtypes.length; i++) {
-				var type = argtypes[i]
-				if (type == 0) {
-					args.push(line[l])
-					l++
-				} else if (type == 1) {
-					var subparsedData = parseline(untokenize(line.slice(l)),linenum,true)
-					var subparsedStr = subparsedData.str
-					var subparsedLen = subparsedData.len
-					l += subparsedLen
-					args.push(subparsedStr)
-				}
-			}
-			
-			str = op.parse.apply(null,args)
-		} else {
-			err(linenum,"Operator or primitive \""+cmd+"\" is not currently supported. Aborting. line = "+line)
-			process.exit();
-		}
-	}
-	if (recursiveformat) {
-		return {len:l,str:str}
-	} else {
-		return str
-	}
-}
-
-function tokenize(str) {
-	return str.split(" ")
-}
-
-function untokenize(str) {
-	return str.join(" ")
-}
-
-function err(ln,str) {
-	console.error(colors.red(colors.inverse("SCAD EXPORT")+"\t"+" line "+ln+": "+str))
+function err(str) {
+	console.error(colors.red(colors.inverse("SCAD EXPORT")+"\t"+str))
 }
 
 function debuginfo(str) {
-	console.log(colors.green(colors.inverse("SCAD EXPORT")+"\t"+str))
-}
-
-
-
-function parse(data,isRoot) { //isParent is only true if this is the root call in the recursive parse tree
-	var lines = splitData(data);
-	
 	if (debug) {
-		debuginfo("LINES")
-		debuginfo("\\n\t"+lines.join("\n\\n\t"))
-		debuginfo("-----------------------")
+		console.log(colors.green(colors.inverse("SCAD EXPORT")+"\t"+str))
 	}
-	
-	var out_union = []
-	var out_difference = []
-	var out_intersection = []
-	var resForNextLine = []
-	var resolution = ""
-	for (var i = 0; i<lines.length; i++) {
-		var line = lines[i]
-		if (line.match(/\S/g)) {
-			var type = line.substr(0,1)
-			var ln = i+1
-			
-			var groupToPushTo;
-			var toPush;
-			if (type == "-") {
-				groupToPushTo = out_difference
-				toPush = parseline(line.substr(2),ln)
-			} else if (type == "+") {
-				groupToPushTo = out_union
-				toPush = parseline(line.substr(2),ln)
-			} else if (type == "&") {
-				groupToPushTo = out_intersection
-				toPush = parseline(line.substr(2),ln)
-			} else if (type == "$") {
-				var resData = parseline(line,ln)
-				if (i == 0) {
-					resolution = resData+"\n"
-				} else {
-					resForNextLine.push(resData)
-				}
-			} else {
-				groupToPushTo = out_union
-				toPush = parseline(line,ln)
-			}
-			if (toPush) {
-				if (resForNextLine) {
-					for (var j = 0; j<resForNextLine.length; j++) {
-						groupToPushTo.push(resForNextLine[j])
-					}
-					resForNextLine = []
-				}
-				groupToPushTo.push(toPush)
-			}
-		}
-	}
-	
-	var union = out_union.length != 0
-	var intersection = out_intersection.length != 0
-	var difference = out_difference.length != 0
-	
-	var out = resolution;
-	if (isRoot) {
-		out += "\n"+headers.join("\n")+"\n"
-	}
-	if (union && !intersection && !difference) {
-		out += "union() {\n"+out_union.join("\n")+"\n}"
-	} else if (!union && intersection && !difference) {
-		out += "intersection() {\n"+out_intersection.join("\n")+"\n}"
-	} else if (!union && !intersection && difference) {
-		out += "difference() {\n"+out_difference.join("\n")+"\n}"
-	} else if (union && !intersection && difference) {
-		out += "difference() {\nunion() {\n"+out_union.join("\n")+"\n}\n"+out_difference.join("\n")+"\n}"
-	} else {
-		out += "intersection() {\ndifference() {\nunion() {\n"+out_union.join("\n")+"\n}\n"+out_difference.join("\n")+"\n}\n"+out_intersection.join("\n")+"\n}";
-	}
-	
-	
-
-	out = out.split("\n");
-	for (var i = 0; i<out.length; i++) {
-		var lastChar = out[i].substr(-1)
-		if (!lastChar.match(/[{}\s;<>]/g) && out[i].length != 0) {
-			out[i] += ";"
-		}
-	}
-	return out.join("\n")
-}
-
-function splitData(d) {
-	var i = 0; 
-	var mode = 0; //0 = basic parse, 1 = in sub block
-	var l =0;
-	var lines = [""]
-	var counter = 0;
-	for (var i = 0; i<d.length; i++) {
-		var c = d[i]
-		if (mode == 0) {
-			if (c == "\n") {
-				l++
-				lines[l] = ""
-			} else if (c == "{") {
-				counter++
-				lines[l] += c
-				mode = 1
-			} else {
-				lines[l] += c
-			}
-		} else if (mode == 1) {
-			lines[l] += c
-			if (c == "}") {
-				counter--
-				if (counter == 0) {
-					l++
-					lines[l] = ""
-					mode = 0
-				}
-			} else if (c == "{") {
-				counter++
-			}
-		}
-	}
-	return lines
 }
 
 const DEFAULT_OPTIONS = {
@@ -354,7 +204,17 @@ const DEFAULT_OPTIONS = {
 function initparse(data,options) {
 	options = combineOptionsListWithDefaults(options,DEFAULT_OPTIONS)
 	debug = options.debug
-	return parse(data,true)	
+	var out = parse(data)
+	
+	//Add semicolons.
+	out = out.split("\n");
+	for (var i = 0; i<out.length; i++) {
+		var lastChar = out[i].substr(-1)
+		if (!lastChar.match(/[{}\s;<>]/g) && out[i].length != 0) {
+			out[i] += ";"
+		}
+	}
+	return out.join("\n")
 }
 
 function combineOptionsListWithDefaults(options,defaults) { //WARNING: this function will NOT work for objects that have more than one level.

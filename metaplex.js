@@ -4,9 +4,17 @@ const fs = require("fs")
 var Metaplex = {
 	solid:class {
 		constructor() {
-			this.transformStack = []
+			this.operations = []
 		}
 
+		get lastOperation() {
+			return this.operations[this.operations.length-1]
+		}
+		
+		set lastOperation(v) {
+			this.operations[this.operations.length-1] = v
+		}
+		
 		move(dx,dy,dz) {
 			return this.translate(dx,dy,dz)
 		}
@@ -16,8 +24,7 @@ var Metaplex = {
 				dz = 0;
 			}
 			
-			this.transformStack.push("translate "+dx+" "+dy+" "+dz)
-			
+			this.operations.push(new Metaplex.operations.translate(dx,dy,dz))
 			return this
 		}
 		
@@ -30,55 +37,55 @@ var Metaplex = {
 		}
 		
 		rotz(rz) {
-			this.transformStack.push("rotz "+rz)
-			return this
-		}
-		
-		copy() {
-			return new Metaplex.primitives.list(this.list())
+			return this.rotate(0,0,rz)
 		}		
 		
 		rotate(rx,ry,rz) {
-			if (rx == 0 && ry == 0) {
-				this.transformStack.push("rotz "+rz)
-			} else {
-				this.transformStack.push("rotate "+rx+" "+ry+" "+rz)
-			}
-			
+			this.operations.push(new Metaplex.operations.rotate(rx,ry,rz))			
 			return this
 		}
 		
 		scale(sx,sy,sz) {
-			this.transformStack.push("scale "+sx+" "+sy+" "+sz)
-			
+			this.operations.push(new Metaplex.operations.scale(sx,sy,sz))
 			return this
 		}
 		
+		copy() {
+			return new Metaplex.copy(this.json(),this.dimension)
+		}
+		
 		offset(amount,mode) {
-			if (mode == "radius") {
-				this.transformStack.push("offset r="+amount)
-			} else if (mode == "chamfer") {
-				this.transformStack.push("offset delta="+amount+",chamfer=true")
-			} else {
-				this.transformStack.push("offset delta="+amount)
-			}
+			this.operations.push(new Metaplex.operations.offset(amount,mode))
 			return this
 		}
 		
 		linear_extrude(height,twist,scale) {
-			var convexity = 2
-			if (!scale) {
-				scale = 1
+			if (this.dimension != 3) {
+				if (!scale) {
+					scale = 1
+				}
+				if (!twist) {
+					twist = 0
+				}
+				this.operations.push(new Metaplex.operations.linear_extrude(height,twist,scale))
+				return this
+			} else {
+				throw 'Cannot use "linear_extrude" on a 3D object.'
 			}
-			if (!twist) {
-				twist = 0
+		}
+		
+		rotate_extrude(degrees) {
+			console.log("Dim = "+this.dimension)
+			if (this.dimension != 3) {
+				this.operations.push(new Metaplex.operations.rotate_extrude(degrees))
+				return this
+			} else {
+				throw 'Cannot use "rotate_extrude" on a 3D object.'
 			}
-			this.transformStack.push("linear_extrude "+height+" "+convexity+" "+twist+" "+JSON.stringify(scale))
-			return this
 		}
 		
 		display_debug() {
-			this.transformStack.push("#");
+			this.operations.push(new Metaplex.operations.display_debug())
 			return this
 		}
 		
@@ -89,119 +96,358 @@ var Metaplex = {
 				if (typeof alpha == "undefined") {
 					alpha = 1
 				}
-				this.transformStack.push("colorname "+name+" "+alpha)
+				this.operations.push(new Metaplex.operations.colorname(name,alpha))
 			} else {
-				this.transformStack.push("color "+r/255+" "+g/255+" "+b/255+" "+a);
+				this.operations.push(new Metaplex.operations.color(r,g,b,a))
 			}
 			return this
 		}
 		
-		save(path,options) {
-			Metaplex.save(this.list(),path,options)
+		setFN(fn) {
+			this.operations.push(new Metaplex.operations.setFN(fn))
+			return this
 		}
 		
+		add(ob) {
+			this.operations.push(new Metaplex.operations.union(ob))
+		}
+		
+		sub(ob) {
+			this.operations.push(new Metaplex.operations.difference(ob))
+		}
+		
+		and(ob) {
+			this.operations.push(new Metaplex.operations.intersection(ob))
+		}
+		
+		json() {
+			var out = this.rootjson()
+			for (var i = 0; i<this.operations.length; i++) {
+				var op = this.operations[i]
+				out = op.json(out)
+			}
+			return out
+		}
+		
+		save(path,options) {
+			Metaplex.save(this.json(),path,options)
+		}		
 	}
 }
-	
-Metaplex.group=class extends Metaplex.solid {
+
+Metaplex.group = class extends Metaplex.solid {
 	constructor() {
-		super();
-		this.addlist = []
-		this.sublist = []
-		this.andlist = []
-		this.headlist = []
+		super()
 	}
 	
-	add(ob) {
-		this.addlist.push(ob.list())
-	}
-	
-	sub(ob) {
-		this.sublist.push(ob.list())
-	}
-	
-	and(ob) {
-		this.andlist.push(ob.list())
-	}
-	
-	setFN(fn) {
-		this.headlist.push("$fn "+fn)
-	}
-	
-	list() {
-		var addlist = Metaplex.joinLineList(this.addlist,"+ ")
-		var andlist = Metaplex.joinLineList(this.andlist,"& ")
-		var sublist = Metaplex.joinLineList(this.sublist,"- ")
-		var joinedList = []
-		if (addlist) joinedList.push(addlist);
-		if (andlist) joinedList.push(andlist);
-		if (sublist) joinedList.push(sublist)
-		
-		
-		return (this.headlist.join("\n")+"\n"+Metaplex.listTransforms(this)+"{\n"+joinedList.join("\n")).replace(/^(\n+)/g,"").replace(/\n{2,}/g,"\n")+"\n}"
+	rootjson() {
+		return {
+			type:"empty"
+		}
 	}
 }
+
+Metaplex.copy = class extends Metaplex.solid {
+	constructor(json,dimension) {
+		super()
+		this.dimension = dimension
+		this.parent = json
+	}
 	
+	rootjson() {
+		return this.parent
+	}
+}
+
+Metaplex.operation = class {
+	constructor() {
+		
+	}	
+}
+
+Metaplex.operations = {
+	translate:class extends Metaplex.operation {
+		constructor(x,y,z) {
+			super()
+			this.x = x
+			this.y = y
+			this.z = z
+		}
+		
+		json(child) {
+			return {
+				type:"translate"
+				,x:this.x
+				,y:this.y
+				,z:this.z
+				,child:child				
+			}
+		}
+	}
+
+	,rotate:class extends Metaplex.operation {
+		constructor(x,y,z) {
+			super()
+			this.x = x
+			this.y = y
+			this.z = z
+		}
+
+		json(child) {
+			return {
+				type:"rotate"
+				,x:this.x
+				,y:this.y
+				,z:this.z
+				,child:child		
+			}
+		}
+	}
+	
+	,scale:class extends Metaplex.operation {
+		constructor(x,y,z) {
+			super()
+			this.x = x
+			this.y = y
+			this.z = z
+		}
+		
+		
+		json(child) {
+			return {
+				type:"scale"
+				,x:this.x
+				,y:this.y
+				,z:this.z
+				,child:child			
+			}
+		}
+	}
+	
+	,union:class extends Metaplex.operation {
+		constructor(ob) {
+			super()
+			this.ob = ob
+		}
+		
+		json(child) {
+			var ob1 = child
+			var ob2 = this.ob.json()
+			return {
+				type:"union"
+				,child1:ob1
+				,child2:ob2
+			}			
+		}		
+	}
+	,difference:class extends Metaplex.operation {
+		constructor(ob) {
+			super()
+			this.ob = ob
+		}
+		
+		json(child) {
+			var ob1 = child
+			var ob2 = this.ob.json()
+			return {
+				type:"difference"
+				,child1:ob1
+				,child2:ob2
+			}			
+		}		
+	}
+	,intersection:class extends Metaplex.operation {
+		constructor(ob) {
+			super()
+			this.ob = ob
+		}
+		
+		json(child) {
+			var ob1 = child
+			var ob2 = this.ob.json()
+			return {
+				type:"intersection"
+				,child1:ob1
+				,child2:ob2
+			}			
+		}		
+	}
+	
+	,linear_extrude:class extends Metaplex.operation {
+		constructor(height,twist,scale) {
+			super()
+			this.dimension = 3
+			this.height = height
+			this.twist = twist
+			this.scale = scale
+		}
+		
+		json(child) {
+			return {
+				type:"linear_extrude"
+				,height:this.height
+				,twist:this.twist
+				,scale:this.scale
+				,child:child
+			}			
+		}		
+	}
+	
+	,rotate_extrude:class extends Metaplex.operation {
+		constructor(angle) {
+			super()
+			this.angle = angle
+			this.dimension = 3
+		}
+		
+		json(child) {
+			return {
+				type:"rotate_extrude"
+				,angle:this.angle
+				,child:child
+			}			
+		}		
+	}
+	
+	,offset:class extends Metaplex.operation {
+		constructor(distance,mode) {
+			super()
+			this.distance = distance
+			this.mode = mode
+		}
+		
+		json(child) {
+			return {
+				type:"offset"
+				,distance:this.distance
+				,mode:this.mode
+				,child:child
+			}			
+		}		
+	}
+	
+	,setFN:class extends Metaplex.operation {
+		constructor(fn) {
+			super()
+			this.fn = fn
+		}
+		
+		json(child) {
+			return {
+				type:"$fn"
+				,fn:this.fn
+				,child:child
+			}			
+		}		
+	}
+	
+	,color:class extends Metaplex.operation {
+		constructor(r,g,b,a) {
+			super()
+
+			this.r = r
+			this.g = g
+			this.b = b
+			this.a = a	
+		}
+		
+		json(child) {
+			return {
+				type:"colorrgba"
+				,r:this.r
+				,g:this.g
+				,b:this.b
+				,a:this.a
+				,child:child
+			}			
+		}		
+	}
+	
+	,colorname:class extends Metaplex.operation {
+		constructor(name,alpha) {
+			super()
+			this.name = name
+			this.alpha= alpha
+		}
+
+		json(child) {
+			return {
+				type:"colorname"
+				,name:this.name
+				,alpha:this.alpha
+				,child:child
+			}			
+		}		
+	}
+}
 
 
 
 
 Metaplex.primitives = {
 	importPath:class extends Metaplex.solid {
-		constructor(path,convexity) {
+		constructor(path) {
 			super()
 			this.path = path
-			this.convexity = convexity
+			this.dimension = 3
 		}
 		
-		list() {
-			return Metaplex.listTransforms(this)+"import "+this.path+" "+this.convexity
-		}		
-	}
-	,list:class extends Metaplex.solid {
-		constructor(list) {
-			super()
-			this.data = list
-		}
-		
-		list() {
-			return Metaplex.listTransforms(this)+this.data
+		rootjson() {
+			return {
+				type:"import"
+				,path:this.path
+			}
 		}		
 	}
 	,sphere:class extends Metaplex.solid{			
 		constructor(radius) {
 			super()
+			this.dimension = 3
 			this.radius = radius
 		}
 		
-		list() {
-			return Metaplex.listTransforms(this)+"sphere "+this.radius
+		rootjson() {
+			return {
+				type:"sphere"
+				,radius:this.radius			
+			}
 		}
 	}	
 	,cube:class extends Metaplex.solid{
 		constructor(size) {
 			super()
+			this.dimension = 3
 			this.size = size
 		}
 		
-		list() {
-			return Metaplex.listTransforms(this)+"cube "+this.size
+		rootjson() {
+			return {
+				type:"cube"
+				,size:this.size
+			}
 		}
 	}
 	,cylinder:class extends Metaplex.solid{
 		constructor(height,radius) {
 			super()
+			this.dimension = 3
 			this.height = height
+			
 			this.radius = radius
 		}
 		
-		list() {
-			return Metaplex.listTransforms(this)+"cylinder "+this.height+" "+this.radius
+		rootjson() {
+			return {
+				type:"cylinder"
+				,height:this.height
+				,radius:this.radius
+			}
 		}
 	}
 	,cone:class extends Metaplex.solid {
 		constructor(height,r1,r2) {
 			super()
+			this.dimension = 3
 			this.height = height
 			this.radius1 = r1
 			if (!r2) {
@@ -210,25 +456,37 @@ Metaplex.primitives = {
 			this.radius2 = r2
 		}
 		
-		list() {
-			return Metaplex.listTransforms(this)+"cone "+this.height+" "+this.radius1+" "+this.radius2
+		rootjson() {
+			return {
+				type:"cone"
+				,height:this.height
+				,radius1:this.radius1
+				,radius2:this.radius2
+			}
 		}		
 	}
 	,box:class extends Metaplex.solid {
 		constructor(width,depth,height) {
 			super()
+			this.dimension = 3
 			this.width = width
 			this.depth = depth
 			this.height = height
 		}
 		
-		list() {
-			return Metaplex.listTransforms(this)+"box "+this.width+" "+this.depth+" "+this.height			
+		rootjson() {
+			return {
+				type:"box"
+				,width:this.width
+				,depth:this.depth
+				,height:this.height
+			}
 		}
 	}
 	,wedge:class extends Metaplex.solid {
 		constructor(height,radius,angle,center) {
 			super();
+			this.dimension = 3
 			this.height = height
 			this.radius = radius
 			this.angle = angle
@@ -238,26 +496,25 @@ Metaplex.primitives = {
 			}
 		}
 		
-		list() {
+		rootjson() {
 			var out = []
-			var group = new Metaplex.group();
-			group.add(new Metaplex.primitives.cylinder(this.height,this.radius))
+			var out = new Metaplex.primitives.cylinder(this.height,this.radius)
 			if (this.angle <= 90) {
 				if (this.angle < 90) {
-					group.and(new Metaplex.primitives.cube(this.radius*1.02).rotz(this.angle-90).translate(0,0,-0.01))
+					out.and(new Metaplex.primitives.cube(this.radius*1.02).rotz(this.angle-90).translate(0,0,-0.01))
 				}				
-				group.and(new Metaplex.primitives.cube(this.radius*1.02))
+				out.and(new Metaplex.primitives.cube(this.radius*1.02))
 			} else if (this.angle <= 180) {
-				group.sub(new Metaplex.primitives.cube(this.radius*2*1.02).translate(-this.radius*1.02,-this.radius*2*1.02,-0.01))
+				out.sub(new Metaplex.primitives.cube(this.radius*2*1.02).translate(-this.radius*1.02,-this.radius*2*1.02,-0.01))
 				if (this.angle < 180) {
-					group.sub(new Metaplex.primitives.cube(this.radius*2*1.02).translate(-this.radius*1.02,0,-0.01).rotz(this.angle))
+					out.sub(new Metaplex.primitives.cube(this.radius*2*1.02).translate(-this.radius*1.02,0,-0.01).rotz(this.angle))
 				}
 			} else {
 				throw "Error: Angles > 180 are currently not supported. Angle = "+this.angle
 			}
 			
 			
-			return Metaplex.listTransforms(this)+group.list();
+			return out.json();
 			
 		}
 		
@@ -265,37 +522,50 @@ Metaplex.primitives = {
 	,torus:class extends Metaplex.solid {
 		constructor(majorRadius,minorRadius) {
 			super();
+			this.dimension = 3
 			this.majorRadius = majorRadius
 			this.minorRadius = minorRadius
 		}
 
-		list() {
-			return Metaplex.listTransforms(this)+"rotate_extrude 360 10 translate "+this.majorRadius+" 0 0 circle "+this.minorRadius
+		rootjson() {
+			var out = new Metaplex.primitives.circle(this.minorRadius)
+			out.translate(this.majorRadius,0,0)
+			out.rotate_extrude(360,10)
+			return out.json();
 		}
 	}
 	,circle:class extends Metaplex.solid {
 		constructor(radius) {
 			super();
+			this.dimension = 2
 			this.radius = radius
 		}
 		
-		list() {
-			return Metaplex.listTransforms(this)+"circle "+this.radius
+		rootjson() {
+			return {
+				type:"circle"
+				,radius:this.radius
+			}
 		}		
 	}
 	,square:class extends Metaplex.solid {
 		constructor(size) {
 			super();
+			this.dimension = 2
 			this.size = size
 		}
 		
-		list() {
-			return Metaplex.listTransforms(this)+"square "+this.size
+		rootjson() {
+			return {
+				type:"square"
+				,size:this.size
+			}
 		}		
 	}
 	,arc:class extends Metaplex.solid {
 		constructor(radius,angle,center) {
 			super();
+			this.dimension = 2
 			this.radius = radius
 			this.angle = angle
 			if (center) {
@@ -303,64 +573,54 @@ Metaplex.primitives = {
 			}
 		}
 		
-		list() {
-			var out = []
-			var group = new Metaplex.group();
-			group.add(new Metaplex.primitives.circle(this.radius))
+		rootjson() {
+			
+			var out = new Metaplex.primitives.circle(this.radius)
 			if (this.angle <= 90) {
 				if (this.angle < 90) {
-					group.and(new Metaplex.primitives.square(this.radius*1.02).rotz(this.angle-90))
+					out.and(new Metaplex.primitives.square(this.radius*1.02).rotz(this.angle-90))
 				}				
-				group.and(new Metaplex.primitives.square(this.radius*1.02))
+				out.and(new Metaplex.primitives.square(this.radius*1.02))
 			} else if (this.angle <= 180) {
-				group.sub(new Metaplex.primitives.square(this.radius*2*1.02).translate(-this.radius*1.02,-this.radius*2*1.02,0))
+				out.sub(new Metaplex.primitives.square(this.radius*2*1.02).translate(-this.radius*1.02,-this.radius*2*1.02,0))
 				if (this.angle < 180) {
-					group.sub(new Metaplex.primitives.square(this.radius*2*1.02).translate(-this.radius*1.02,0,0).rotz(this.angle))
+					out.sub(new Metaplex.primitives.square(this.radius*2*1.02).translate(-this.radius*1.02,0,0).rotz(this.angle))
 				}
 			} else {
 				throw "Error: Angles > 180 are currently not supported. Angle = "+this.angle
 			}
 			
 			
-			return Metaplex.listTransforms(this)+group.list();
+			return out.json();
 		}		
 	}
 	,polygon:class extends Metaplex.solid {
 		constructor(points) {
 			super();
+			this.dimension = 2
 			this.points = points
 		}
 		
-		list() {
-			return Metaplex.listTransforms(this)+"polygon "+JSON.stringify({points:this.points})
+		rootjson() {
+			return {
+				type:"polygon"
+				,points:this.points
+			}
 		}
 		
-	}
-	,isoThreads:class extends Metaplex.solid {
-		constructor(radius,pitch,length,options) {
-			super()
-			this.radius = radius
-			this.pitch = pitch
-			this.length = length
-			this.options = options
-		}
-		
-		
-		list() {
-			return Metaplex.listTransforms(this)+"threads_dk "+this.radius+" "+this.pitch+" "+this.length+" "+JSON.stringify(this.options)		
-		}		
 	}
 	,threads:class extends Metaplex.solid {
 		constructor(helixRadius,threadRadius,pitch,length,options) {
 			super()
+			this.dimension = 3
 			this.helixRadius = helixRadius
 			this.threadRadius = threadRadius
 			this.options = options
 			this.pitch = pitch
 			this.length = length
 		}
-		
-		list() {
+	
+		rootjson() {
 			var twist = -(this.length/this.pitch)*360
 			var stretch =1/(Math.sin(Math.atan2(this.pitch,2*Math.PI*this.helixRadius)))
 			var points = []
@@ -392,24 +652,19 @@ Metaplex.primitives = {
 			var endWedge1 = new Metaplex.primitives.wedge(threadRadius*2+0.02,helixRadius+threadRadius+0.1,startAngle).translate(0,0,this.length-(threadRadius*2+0.01)).rotz(-endAngle-startAngle*2+0.1)
 			var endWedge2 = new Metaplex.primitives.wedge(threadRadius*1.1+0.02,helixRadius+threadRadius+0.1,startAngle).translate(0,0,this.length-(threadRadius*1.1+0.01)).rotz(-endAngle-startAngle)
 			
-			return Metaplex.listTransforms(this)+"{\n+ linear_extrude "+this.length+" "+10+" "+twist+" "+1+" polygon "+JSON.stringify({points:points})+"\n- "+startWedge1.list()+"\n- "+startWedge2.list()+"\n- "+endWedge1.list()+"\n- "+endWedge2.list()+"\n}"
+			var out = new Metaplex.primitives.polygon(points)
+			out.linear_extrude(this.length,twist)
+			out.sub(startWedge1)
+			out.sub(startWedge2)
+			out.sub(endWedge1)
+			out.sub(endWedge2)
+			return out.json();
+			
+			//return Metaplex.listTransforms(this)+"{\n+ linear_extrude "+this.length+" "+10+" "+twist+" "+1+" polygon "+JSON.stringify({points:points})+"\n- "+startWedge1.list()+"\n- "+startWedge2.list()+"\n- "+endWedge1.list()+"\n- "+endWedge2.list()+"\n}"
 		}		
 	}
 	
 
-}
-
-Metaplex.listTransforms = function(ob) {
-	var out = ob.transformStack.reverse().join(" ")
-	return out+(out.length != 0 ? " " : "")
-}
-
-Metaplex.joinLineList = function(lines,prefix) {
-	if (lines.length) {
-		return prefix + lines.join("\n"+prefix)
-	} else {
-		return ""
-	}
 }
 
 Metaplex.utils = {
@@ -462,5 +717,7 @@ Metaplex.addDependency = function(path) {
 		,path:path
 	})
 }
+
+Metaplex.convert = require("convert-units")
 
 module.exports = Metaplex
