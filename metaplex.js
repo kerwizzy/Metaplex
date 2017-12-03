@@ -15,6 +15,11 @@ var Metaplex = {
 			this.operations[this.operations.length-1] = v
 		}
 		
+		copyTopOperation(ob) {
+			this.operations.push(ob.lastOperation)
+			return this
+		}
+		
 		move(dx,dy,dz) {
 			return this.translate(dx,dy,dz)
 		}
@@ -48,6 +53,23 @@ var Metaplex = {
 		scale(sx,sy,sz) {
 			this.operations.push(new Metaplex.operations.scale(sx,sy,sz))
 			return this
+		}
+		
+		mirror(x,y,z) {
+			this.operations.push(new Metaplex.operations.mirror(x,y,z))
+			return this
+		}
+		
+		mirrorX() {
+			return this.mirror(1,0,0)
+		}
+		
+		mirrorY() {
+			return this.mirror(0,1,0)
+		}
+		
+		mirrorZ() {
+			return this.mirror(0,0,1)
 		}
 		
 		copy() {
@@ -216,6 +238,26 @@ Metaplex.operations = {
 		json(child) {
 			return {
 				type:"scale"
+				,x:this.x
+				,y:this.y
+				,z:this.z
+				,child:child			
+			}
+		}
+	}
+	
+	,mirror:class extends Metaplex.operation {
+		constructor(x,y,z) {
+			super()
+			this.x = x
+			this.y = y
+			this.z = z
+		}
+		
+		
+		json(child) {
+			return {
+				type:"mirror"
 				,x:this.x
 				,y:this.y
 				,z:this.z

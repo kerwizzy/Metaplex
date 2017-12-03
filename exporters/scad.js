@@ -25,6 +25,11 @@ var operators = {
 			return "scale(["+o.x+","+o.y+","+o.z+"]) "+parse(o,l)
 		}		
 	}
+	,"mirror":{
+		parse(o,l) {
+			return "mirror(["+o.x+","+o.y+","+o.z+"]) "+parse(o,l)
+		}		
+	}
 	,"linear_extrude":{
 		parse(o,l) {
 			return "linear_extrude(height="+o.height+",convexity=10,twist="+o.twist+",scale="+o.scale+") {\n"+parse(o,l)+"\n}"
