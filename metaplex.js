@@ -1,5 +1,5 @@
 const fs = require("fs")
-
+const Path = require("path")
 
 var Metaplex = {
 	solid:class {
@@ -51,6 +51,11 @@ var Metaplex = {
 		}
 		
 		scale(sx,sy,sz) {
+			if (typeof sy == "undefined") {
+				sy = sx
+				sz = sx
+			}
+			
 			this.operations.push(new Metaplex.operations.scale(sx,sy,sz))
 			return this
 		}
@@ -637,16 +642,32 @@ Metaplex.primitives = {
 		}		
 	}
 	,polygon:class extends Metaplex.solid {
-		constructor(points) {
+		constructor(points) {			
 			super();
+			this.rescaleFactor = 1000
+			
 			this.dimension = 2
-			this.points = points
+			this.points = []
+			for (var i = 0; i<points.length; i++) {
+				var point = points[i]
+				var x = point[0]
+				var y = point[1]
+				x*=this.rescaleFactor
+				y*=this.rescaleFactor
+				this.points.push([x,y])
+			}			
 		}
 		
 		rootjson() {
-			return {
-				type:"polygon"
-				,points:this.points
+			return { //rescale to work around https://github.com/openscad/openscad/issues/999
+				type:"scale"
+				,x:1/this.rescaleFactor
+				,y:1/this.rescaleFactor
+				,z:1/this.rescaleFactor
+				,child:{
+					type:"polygon"
+					,points:this.points
+				}
 			}
 		}
 		
@@ -709,6 +730,178 @@ Metaplex.primitives = {
 
 }
 
+Metaplex.vec3 = class Vec3 {
+	constructor (x,y,z) {
+		if (!x) {x = 0}
+		if (!y) {y = 0}
+		if (!z) {z = 0}
+		
+		this.x = x
+		this.y = y
+		this.z = z
+		
+		this.updateMagnitude();
+	}
+	
+	duplicate() { //Returns a new Metaplex.vec3 with exactly the same parameters as this one
+		return new Metaplex.vec3(this.x,this.y,this.z)
+	}
+	
+	updateMagnitude() {
+		var x = this.x
+		var y = this.y
+		var z = this.z
+		
+		this.magnitude = Math.sqrt(x*x+y*y+z*z)
+	}
+	
+	normalize() {
+		var x = this.x
+		var y = this.y
+		var z = this.z
+		
+		//this.updateMagnitude();
+		
+		if (this.magnitude == Infinity) {
+			if (x == Infinity) {
+				x = 1
+				y = 0
+				z = 0
+			}
+			if (y == Infinity) {
+				x = 0
+				y = 1
+				z = 0
+			}
+			if (z == Infinity) {
+				x = 0
+				y = 0
+				z = 1
+			}
+			if (x == -Infinity) {
+				x = -1
+				y = 0
+				z = 0
+			}
+			if (y == -Infinity) {
+				x = 0
+				y = -1
+				z = 0
+			}
+			if (z == -Infinity) {
+				x = 0
+				y = 0
+				z = -1
+			}
+		} else {		
+			x /= this.magnitude
+			y /= this.magnitude
+			z /= this.magnitude
+		}
+		
+		return new Metaplex.vec3(x,y,z)	
+	}
+	
+	scale(factor) { //Multiply all the components of a vector by a constant
+		var x = this.x
+		var y = this.y
+		var z = this.z
+
+		x*=factor
+		y*=factor
+		z*=factor
+		
+		return new Metaplex.vec3(x,y,z)
+	}
+	
+	add(vector) { //Add each component of another vector to that component of this vector (add x1 + x2, y1 + y2, etc)
+		var x = this.x
+		var y = this.y
+		var z = this.z
+	
+		x += vector.x
+		y += vector.y
+		z += vector.z
+		
+		return new Metaplex.vec3(x,y,z)
+	}
+	
+	subtract(vector) {
+		var x = this.x
+		var y = this.y
+		var z = this.z
+	
+		x -= vector.x
+		y -= vector.y
+		z -= vector.z
+		
+		return new Metaplex.vec3(x,y,z)		
+	}
+	
+	multiply(vector) {
+		var x = this.x
+		var y = this.y
+		var z = this.z
+	
+		x *= vector.x
+		y *= vector.y
+		z *= vector.z
+		
+		return new Metaplex.vec3(x,y,z)		
+	}
+	
+	divide(vector) {
+		var x = this.x
+		var y = this.y
+		var z = this.z
+	
+		x /= vector.x
+		y /= vector.y
+		z /= vector.z
+		
+		return new Metaplex.vec3(x,y,z)		
+	}
+	
+	
+	constantDivideBy(constant) { //Divide a constant by this vector
+		var x = this.x
+		var y = this.y
+		var z = this.z
+	
+		x = constant/x
+		y = constant/y
+		z = constant/z
+		
+		return new Metaplex.vec3(x,y,z)		
+	}
+	
+	dotProduct(vector) { //Note that this returns a NUMBER not a vector
+		var x1 = this.x
+		var y1 = this.y
+		var z1 = this.z
+		
+		var x2 = vector.x
+		var y2 = vector.y
+		var z2 = vector.z
+		
+		var px = x1*x2
+		var py = y1*y2
+		var pz = z1*z2
+		
+		return px+py+pz
+	}
+	
+	reflect(normal) {
+		return this.subtract(normal.scale(this.dotProduct(normal)*2))
+	}
+	
+	toString() {
+		return "("+this.x+","+this.y+","+this.z+")"
+	}
+	
+	
+}
+
 Metaplex.utils = {
 	removeExtension(path) {
 		path = path.split(".")
@@ -760,6 +953,44 @@ Metaplex.addDependency = function(path) {
 	})
 }
 
+Metaplex.require = function(path) {
+	Metaplex.addDependency(path)
+	return require(Path.resolve(Path.parse(module.parent.filename).dir,path))
+}
+
 Metaplex.convert = require("convert-units")
+
+Metaplex.makeConverter = function(unit) {
+	return function(s,u) {
+		/*
+		POSSIBLE WAYS TO CALL
+		units = "mm"
+		s = "15in"
+		u = undefined
+		returns 15in converted to mm
+		
+		units = "mm"
+		s = 15
+		u = "in"
+		returns 15in converted to mm
+		
+		
+		*/
+		
+		if (!u) {
+			for (var i = s.length-1; i >= 0; i--) {
+				var substr = s.substr(0,i)
+				var num = Number(substr)
+				if (!isNaN(num)) {
+					return Metaplex.convert(num).from(s.substr(i)).to(unit)
+				}
+			}
+			throw new Error("Error: could not parse unit.")
+		} else {
+			return Metaplex.convert(s).from(u).to(unit)
+		}		
+	}	
+}
+
 
 module.exports = Metaplex
