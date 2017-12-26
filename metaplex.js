@@ -86,6 +86,7 @@ var Metaplex = {
 			return this
 		}
 		
+		//BUG: dimension should be set to 3 after an extrude..
 		linear_extrude(height,twist,scale) {
 			if (this.dimension != 3) {
 				if (!scale) {
@@ -137,14 +138,17 @@ var Metaplex = {
 		
 		add(ob) {
 			this.operations.push(new Metaplex.operations.union(ob))
+			return this
 		}
 		
 		sub(ob) {
 			this.operations.push(new Metaplex.operations.difference(ob))
+			return this
 		}
 		
 		and(ob) {
 			this.operations.push(new Metaplex.operations.intersection(ob))
+			return this
 		}
 		
 		json() {
@@ -536,6 +540,10 @@ Metaplex.primitives = {
 			this.dimension = 3
 			this.height = height
 			this.radius = radius
+			this.SIZE = this.height
+			if (this.radius > this.height) {
+				this.SIZE = this.radius
+			}
 			this.angle = angle
 			this.center = center
 			if (center) {
@@ -548,13 +556,13 @@ Metaplex.primitives = {
 			var out = new Metaplex.primitives.cylinder(this.height,this.radius)
 			if (this.angle <= 90) {
 				if (this.angle < 90) {
-					out.and(new Metaplex.primitives.cube(this.radius*1.02).rotz(this.angle-90).translate(0,0,-0.01))
+					out.and(new Metaplex.primitives.cube(this.SIZE*1.02).rotz(this.angle-90).translate(0,0,-0.01))
 				}				
-				out.and(new Metaplex.primitives.cube(this.radius*1.02))
+				out.and(new Metaplex.primitives.cube(this.SIZE*1.02))
 			} else if (this.angle <= 180) {
-				out.sub(new Metaplex.primitives.cube(this.radius*2*1.02).translate(-this.radius*1.02,-this.radius*2*1.02,-0.01))
+				out.sub(new Metaplex.primitives.cube(this.SIZE*2*1.02).translate(-this.SIZE*1.02,-this.SIZE*2*1.02,-0.01))
 				if (this.angle < 180) {
-					out.sub(new Metaplex.primitives.cube(this.radius*2*1.02).translate(-this.radius*1.02,0,-0.01).rotz(this.angle))
+					out.sub(new Metaplex.primitives.cube(this.SIZE*2*1.02).translate(-this.SIZE*1.02,0,-0.01).rotz(this.angle))
 				}
 			} else {
 				throw "Error: Angles > 180 are currently not supported. Angle = "+this.angle
@@ -595,17 +603,23 @@ Metaplex.primitives = {
 			}
 		}		
 	}
+	//Metaplex.primitives.rectangle = Metaplex.primitves.square. See below.
 	,square:class extends Metaplex.solid {
-		constructor(size) {
+		constructor(x,y) {
 			super();
+			if (typeof y == "undefined") {
+				y = x
+			}
 			this.dimension = 2
-			this.size = size
+			this.width = x
+			this.depth = y
 		}
 		
 		rootjson() {
 			return {
-				type:"square"
-				,size:this.size
+				type:"rectangle"
+				,x:this.width
+				,y:this.depth
 			}
 		}		
 	}
@@ -672,6 +686,36 @@ Metaplex.primitives = {
 		}
 		
 	}
+	,text:class extends Metaplex.solid {
+		constructor(text,size,font,options) {
+			super();
+			this.text = text
+			this.size = size
+			this.font = font
+			this.halign = options.halign || "left"
+			this.valign = options.valign || "baseline"
+			this.spacing = options.spacing || 1
+			this.direction = options.direction || "ltr"
+			this.language = options.language || "en"
+			this.script = options.script || "latin"
+		}	
+		
+		rootjson() {
+			return {
+				type:"text"
+				,text:this.text
+				,size:this.size
+				,font:this.font
+				,halign:this.halign
+				,valign:this.valign
+				,spacing:this.spacing
+				,direction:this.direction
+				,language:this.language
+				,script:this.script
+			}
+		}
+		
+	}
 	,threads:class extends Metaplex.solid {
 		constructor(helixRadius,threadRadius,pitch,length,options) {
 			super()
@@ -729,6 +773,8 @@ Metaplex.primitives = {
 	
 
 }
+
+Metaplex.primitives.rectangle = Metaplex.primitives.square
 
 Metaplex.vec3 = class Vec3 {
 	constructor (x,y,z) {

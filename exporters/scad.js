@@ -68,9 +68,9 @@ var operators = {
 			return "cylinder(h="+o.height+",r1="+o.radius1+",r2="+o.radius2+")"
 		}
 	}
-	,"square":{
+	,"rectangle":{
 		parse(o,l) {
-			return "square("+o.size+")"
+			return "square(["+o.x+","+o.y+"])"
 		}
 	}
 	,"circle":{
@@ -82,6 +82,11 @@ var operators = {
 		parse(o,l) {
 			return "polygon("+JSON.stringify(o.points)+")"
 		}
+	}
+	,"text":{
+		parse(o,l) {
+			return `text("${o.text}",${o.size},"${o.font}",halign="${o.halign}",valign="${o.valign}",spacing=${o.spacing},direction="${o.direction}",language="${o.language}",script="${o.script}")`
+		}	
 	}
 	,"union":{
 		parse(o,l) {
