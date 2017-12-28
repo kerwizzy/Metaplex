@@ -37,7 +37,7 @@ var operators = {
 	}
 	,"rotate_extrude":{
 		parse(o,l,d) {
-			return "rotate_extrude(angle="+o.angle+",convexity=2) {\n"+parse(o,l,d)+"\n}"
+			return "rotate_extrude(angle="+o.angle+genFnParam(d)+",convexity=2) {\n"+parse(o,l,d)+"\n}"
 		}
 	}
 	,"cube":{
