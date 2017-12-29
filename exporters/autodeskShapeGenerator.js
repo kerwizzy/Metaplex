@@ -37,17 +37,24 @@ function primitive_cylinder(r,n,h) {
 		//base
 		mesh.triangle(
 		0,0,0,
-		lastX,lastY,0,
-		x,y,0)
+		x,y,0,
+		lastX,lastY,0)
+		
 		
 		//cap, notice swapped normals
 		mesh.triangle(
 		0,0,h,
-		x,y,h,
-		lastX,lastY,h)
+		lastX,lastY,h,
+		x,y,h)
 		
 		//side
-		mesh.quad(lastX,lastY,0,lastX,lastY,h,x,y,h,x,y,0)
+		
+		mesh.quad(
+		x,y,0,
+		x,y,h,
+		lastX,lastY,h,
+		lastX,lastY,0		
+		)
 		
 		lastX = x
 		lastY = y
@@ -55,45 +62,91 @@ function primitive_cylinder(r,n,h) {
 	return mesh
 }
 
+/*
+mesh.quad(
+0,0,0,
+0,d,0,
+w,d,0,
+w,0,0);
+
+mesh.quad(
+w,0,h,
+w,d,h,
+0,d,h,
+0,0,h	
+);
+
+mesh.quad(
+0,0,0,
+0,d,0,
+0,d,h,
+0,0,h);
+
+mesh.quad(
+w,0,h,
+w,d,h,
+w,d,0,
+w,0,0	
+);
+
+mesh.quad(
+0,0,0,
+0,0,h,
+w,0,h,
+w,0,0);
+
+mesh.quad(
+w,d,0,
+w,d,h,
+0,d,h,
+0,d,0	
+);
+*/
+
 function primitive_box(w,d,h) {
 	var mesh = new Mesh3D();
+	
 	mesh.quad(
 	0,0,0,
 	0,d,0,
 	w,d,0,
-	w,0,0)
+	w,0,0);	
+	
+	mesh.quad(
+	w,0,h,
+	w,d,h,
+	0,d,h,
+	0,0,h	
+	);	
 	
 	mesh.quad(
 	0,0,h,
 	0,d,h,
-	w,d,h,
-	w,0,h)
-	
-	mesh.quad(
-	0,0,0,
 	0,d,0,
-	0,d,h,
-	0,0,h)
+	0,0,0	
+	);
 	
 	mesh.quad(
 	w,0,0,
 	w,d,0,
 	w,d,h,
-	w,0,h)
-	
-	mesh.quad(
-	0,0,0,
-	0,0,h,
-	w,0,h,
-	w,0,0)
-	
+	w,0,h);
+
 	mesh.quad(
 	0,d,0,
 	0,d,h,
 	w,d,h,
-	w,d,0)
+	w,d,0);
 	
-	return mesh
+	
+	mesh.quad(
+	w,0,0,
+	w,0,h,
+	0,0,h,
+	0,0,0	
+	);
+	
+	return mesh;
 }
 
 function primitive_polygon(points) {
@@ -107,30 +160,35 @@ function primitive_polygon(points) {
 }
 
 var nCallbackLevel = 0; //Number of callbacks to close
+var tempMeshID = -1;
+function tempMeshVariable() {
+	tempMeshID++
+	return "tempMesh_"+tempMeshID
+}
 
 var operators = {
 	"translate":{
 		parse(o,l,d) {
-			return parse(o,l,d)+".transform(new Matrix3D().translation("+o.x+","+o.y+","+o.z+"))"
+			return parse(o,l,d).text+".transform(new Matrix3D().translation("+o.x+","+o.y+","+o.z+"))"
 		}	
 	}
 	,"rotate":{
 		parse(o,l,d) {
 			if (o.x == 0 && o.y == 0) {
-				return parse(o,l,d)+".transform(new Matrix3D().rotationZ("+o.z+"))"
+				return parse(o,l,d).text+".transform(new Matrix3D().rotationZ("+o.z+"))"
 			} else {
-				return parse(o,l,d)+".transform(new Matrix3D().rotationZ("+o.x+","+o.y+","+o.z+"))"
+				return parse(o,l,d).text+".transform(new Matrix3D().rotationZ("+o.x+","+o.y+","+o.z+"))"
 			}
 		}		
 	}
 	,"scale":{
 		parse(o,l,d) {
-			return parse(o,l,d)+".transform(new Matrix3D().scaling("+o.x+","+o.y+","+o.z+"))"
+			return parse(o,l,d).text+".transform(new Matrix3D().scaling("+o.x+","+o.y+","+o.z+"))"
 		}		
 	}
 	,"mirror":{
 		parse(o,l,d) {
-			return parse(o,l,d)+".transform(new Matrix3D().scaling("+(-o.x)+","+(-o.y)+","+(-o.z)+")).flipNormals()" //TODO: this won't work correctly in all cases (the values are supposed to define a plane to mirror on), but this will work for now.
+			return parse(o,l,d).text+".transform(new Matrix3D().scaling("+(-o.x)+","+(-o.y)+","+(-o.z)+")).flipNormals()" //TODO: this won't work correctly in all cases (the values are supposed to define a plane to mirror on), but this will work for now.
 		}		
 	}
 	/*
@@ -203,23 +261,34 @@ var operators = {
 				angle:...
 				child:{
 					type:difference
-					child1:...
-					child2:...
+					child1:{
+						type:intersection
+						child1:a
+						child2:b
+					}
+					child2:{
+						type:union
+						child1:c
+						child2:d
+					}
 				}
 			}
 		}
 		child2:{
-			....
+			e
 		}
 	}
 	}
 	
-	<child1>.subtract(<child2>,function(mesh) {
-		mesh.rotate().unify(<child2>,function(mesh) {
-			callback(mesh)
+	a.intersect(b,function(tempMesh3) {
+		c.unify(d,function(tempMesh2) {
+			tempMesh3.subtract(tempMesh2,function(tempMesh1) {
+				tempMesh1.rotate().unify(d,function(tempMesh0) {
+					callback(mesh)
 	
 	
 	Added at end using nCallbackLevel
+			})
 		})
 	})
 	
@@ -229,20 +298,17 @@ var operators = {
 	
 	,"union":{
 		parse(o,l,d) {
-			nCallbackLevel++
-			return parse(o,l,"child1",d)+".unify("+parse(o,l,"child2",d)+",function(mesh) {\nmesh"
+			return generateCallbackOperation(o,l,d,"unite")
 		}
 	}
 	,"difference":{
 		parse(o,l,d) {
-			nCallbackLevel++
-			return parse(o,l,"child1",d)+".subtract("+parse(o,l,"child2",d)+",function(mesh) {\nmesh"
+			return generateCallbackOperation(o,l,d,"subtract","flipNormals()")
 		}
 	}
 	,"intersection":{
 		parse(o,l,d) {
-			nCallbackLevel++
-			return parse(o,l,"child1",d)+".intersect("+parse(o,l,"child2",d)+",function(mesh) {\nmesh"
+			return generateCallbackOperation(o,l,d,"intersect")
 		}
 	}
 	/*
@@ -291,6 +357,43 @@ var operators = {
 			return "new Mesh3D()"
 		}
 	}
+}
+
+function generateCallbackOperation(o,l,d,operation,child2Method) {
+	nCallbackLevel++
+	if (!child2Method) {
+		child2Method = ""
+	} else {
+		child2Method = "."+child2Method
+	}
+	
+	var child1 = parse(o,l,"child1",d)
+	var child2 = parse(o,l,"child2",d)
+	
+	var expr1; //The expressions to actually use as an argument
+	var expr2;
+	var previous1; //Any previous callbacks
+	var previous2;
+	
+	if (child1.callbackArgument) {
+		expr1 = child1.callbackArgument
+		previous1 = child1.text
+	} else {
+		expr1 = child1.text
+		previous1 = ""
+	}
+	
+	if (child2.callbackArgument) {
+		expr2 = child2.callbackArgument
+		previous2 = child2.text
+	} else {
+		expr2 = child2.text
+		previous2 = ""
+	}
+	var callbackArgument = tempMeshVariable();
+	
+	var text = previous1+previous2+expr1+"."+operation+"("+expr2+child2Method+",function("+callbackArgument+") {"+(l.level > 0 ? "\nmesh" : "")
+	return {text:text,callbackArgument:callbackArgument}
 }
 
 function copy(obj) {
@@ -351,7 +454,12 @@ function parse(obj,loc,tag,data) {
 	var type = obj.type
 	if (operators[type]) {
 		try {
-			return operators[type].parse(obj,loc,data)
+			var parsed = operators[type].parse(obj,loc,data)
+			if (typeof parsed == "string") {
+				return {text:parsed} //Must be in object format
+			} else {
+				return parsed
+			}
 		} catch(error) {
 			err(error+", loc = "+loc.errtext)
 		}
@@ -390,11 +498,11 @@ function initparse(data,options) {
 	
 	options = combineOptionsListWithDefaults(options,DEFAULT_OPTIONS)
 	debug = options.debug
-	var out = parse(data,undefined,defaultData)
+	var out = parse(data,undefined,defaultData).text
 	if (nCallbackLevel == 0) {
 		out = "var mesh = "+out
 	}
-	out += "\ncallback(Solid.make(mesh))"
+	out += "\ncallback(Solid.make(tempMesh_0))"
 	
 	for (var i = 0; i<nCallbackLevel; i++) {
 		out += "\n})"
@@ -424,8 +532,7 @@ ${primitive_polygon.toString()}
 ${primitive_box.toString()}
 
 function shapeGeneratorDefaults(callback) {
-var params = [{}];
-callback(params);
+callback([]);
 }
 
 function shapeGeneratorEvaluate(params, callback) {
