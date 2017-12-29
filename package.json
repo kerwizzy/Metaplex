@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "A js library to dynamically generate lower-level CAD code using js programs.",
   "main": "metaplex-watch.js",
+  "repository":"https://github.com/kerwizzy/Metaplex",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -11,6 +12,7 @@
   "dependencies": {
     "b-spline": "^2.0.1",
     "colors": "^1.1.2",
-    "convert-units": "^2.3.1"
+    "convert-units": "^2.3.1",
+    "gl-mat4": "^1.1.4"
   }
 }

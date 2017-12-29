@@ -1,5 +1,6 @@
 const fs = require("fs")
 const Path = require("path")
+const colors = require("colors")
 
 var Metaplex = {
 	solid:class {
@@ -162,7 +163,11 @@ var Metaplex = {
 		
 		save(path,options) {
 			Metaplex.save(this.json(),path,options)
-		}		
+		}
+		
+		exportAs(exporter,options) {
+			return Metaplex.exportAs(this.json(),exporter,options)
+		}
 	}
 }
 
@@ -463,20 +468,6 @@ Metaplex.primitives = {
 				,radius:this.radius			
 			}
 		}
-	}	
-	,cube:class extends Metaplex.solid{
-		constructor(size) {
-			super()
-			this.dimension = 3
-			this.size = size
-		}
-		
-		rootjson() {
-			return {
-				type:"cube"
-				,size:this.size
-			}
-		}
 	}
 	,cylinder:class extends Metaplex.solid{
 		constructor(height,radius) {
@@ -520,6 +511,11 @@ Metaplex.primitives = {
 		constructor(width,depth,height) {
 			super()
 			this.dimension = 3
+			if (typeof depth == "undefined") {
+				depth = width
+				height = width
+			} 
+			
 			this.width = width
 			this.depth = depth
 			this.height = height
@@ -775,6 +771,8 @@ Metaplex.primitives = {
 }
 
 Metaplex.primitives.rectangle = Metaplex.primitives.square
+Metaplex.primitives.rect = Metaplex.primitives.square
+Metaplex.primitives.cube = Metaplex.primitives.box
 
 Metaplex.vec3 = class Vec3 {
 	constructor (x,y,z) {
@@ -945,8 +943,97 @@ Metaplex.vec3 = class Vec3 {
 		return "("+this.x+","+this.y+","+this.z+")"
 	}
 	
+	arr() {
+		return [this.x,this.y,this.z]
+	}	
 	
 }
+
+Metaplex.glmat4 = require("gl-mat4")
+
+
+Metaplex.mat4 = class {
+	constructor(arr) {
+		if (!arr) {
+			this.data = Metaplex.glmat4.create();
+		} else {
+			this.data = arr
+		}
+	}
+	
+	clone() {
+		return Metaplex.glmat4.clone(this.data)
+	}
+	
+	invert() {
+		var out = []
+		Metaplex.glmat4.invert(out,this.clone())
+		return out
+	}
+	
+	translate(a,b,c) {
+		var arr;
+		if (a instanceof Metaplex.vec3) {
+			arr = vec3.arr();
+		} else if (typeof b != "undefined") {
+			arr = [a,b,c]
+		} else {
+			arr = a
+		}
+		var out = []
+		Metaplex.glmat4.translate(out,this.data,arr)
+		return new Metaplex.mat4(out)
+	}
+	
+	scale(a,b,c) {
+		var arr;
+		if (a instanceof Metaplex.vec3) {
+			arr = vec3.arr();
+		} else if (typeof b != "undefined") {
+			arr = [a,b,c]
+		} else {
+			arr = a
+		}
+		var out = []
+		Metaplex.glmat4.translate(out,this.data,arr)
+		return new Metaplex.mat4(out)
+	}
+	
+	rotateX(angle) {
+		var out = []
+		Metaplex.glmat4.rotateX(out,this.data,angle)
+		return new Metaplex.mat4(out)
+	}
+	
+	rotateY(angle) {
+		var out = []
+		Metaplex.glmat4.rotateY(out,this.data,angle)
+		return new Metaplex.mat4(out)
+	}
+	
+	rotateZ(angle) {
+		var out = []
+		Metaplex.glmat4.rotateZ(out,this.data,angle)
+		return new Metaplex.mat4(out)
+	}
+	
+	invert() {
+		var out = []
+		Metaplex.glmat4.invert(out,this.data)
+		return new Metaplex.mat4(out)
+	}
+	
+	toString() {
+		var lines = []
+		lines.push("["+this.data.slice(0,4).join(",")+"]")
+		lines.push(" ["+this.data.slice(4,8).join(",")+"]")
+		lines.push(" ["+this.data.slice(8,12).join(",")+"]")
+		lines.push(" ["+this.data.slice(12,16).join(",")+"]")
+		return "["+lines.join("\n")+"]"
+	}
+}
+
+
 
 Metaplex.utils = {
 	removeExtension(path) {
@@ -971,19 +1058,40 @@ Metaplex.utils = {
 	}
 }
 
+Metaplex.log = {
+	error:function(s) {
+		var err = new Error(s)
+		console.error(colors.red(colors.inverse("METAPLEX")+"\t"+err.stack))
+	}	
+}
+
 Metaplex.save = function(list,path,options) {
 	var type = Metaplex.utils.getExtension(path)
-	Metaplex.exporters[type].save(list,path,options)
+	if (!Metaplex.exporters[type]) {
+		Metaplex.log.error("Cannot find exporter module for file type '"+type+"'.")
+	} else {
+		fs.writeFileSync(path,Metaplex.exportAs(list,type,options),"utf8")
+	}
 }
+
+Metaplex.exportAs = function(list,exporter,options) {
+	if (!Metaplex.exporters[exporter]) {
+		Metaplex.log.error("Cannot find exporter module '"+exporter+"'.")
+	} else {
+		return Metaplex.exporters[exporter].parse(list,options)
+	}
+}
+
 
 Metaplex.exporters = {}
 
 
 Metaplex.exporters.scad = {
 	parse:require(__dirname+"/exporters/scad.js")
-	,save:function(list,path,options) {
-		fs.writeFileSync(path,Metaplex.exporters.scad.parse(list,options),"utf8")
-	}
+}
+
+Metaplex.exporters["Autodesk Shape Generator"] = {
+	parse:require(__dirname+"/exporters/autodeskShapeGenerator.js")
 }
 
 Metaplex.watch = {
