@@ -1,6 +1,8 @@
 const fs = require("fs")
 const Path = require("path")
 const colors = require("colors")
+const FilteredError = require("./filterederror.js")
+
 
 var Metaplex = {
 	solid:class {
@@ -104,7 +106,6 @@ var Metaplex = {
 		}
 		
 		rotate_extrude(degrees) {
-			console.log("Dim = "+this.dimension)
 			if (this.dimension != 3) {
 				this.operations.push(new Metaplex.operations.rotate_extrude(degrees))
 				return this
@@ -201,6 +202,14 @@ var Metaplex = {
 		}
 		,slopeStretch(m) {
 			return 1/(Math.sin(Math.atan(m)))
+		}
+		,checkValues(obj) {
+			var keys = Object.keys(obj)
+			for (var i = 0; i<keys.length; i++) {
+				if (typeof obj[keys[i]] == "undefined") {
+					Metaplex.log.error(keys[i]+" is undefined.")
+				}
+			}
 		}
 	}
 }
@@ -482,6 +491,8 @@ Metaplex.primitives = {
 			super()
 			this.path = path
 			this.dimension = 3
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		rootjson() {
@@ -496,6 +507,8 @@ Metaplex.primitives = {
 			super()
 			this.dimension = 3
 			this.radius = radius
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		rootjson() {
@@ -510,8 +523,9 @@ Metaplex.primitives = {
 			super()
 			this.dimension = 3
 			this.height = height
-			
 			this.radius = radius
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		rootjson() {
@@ -532,6 +546,8 @@ Metaplex.primitives = {
 				r2 = 0
 			}
 			this.radius2 = r2
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		rootjson() {
@@ -555,6 +571,8 @@ Metaplex.primitives = {
 			this.width = width
 			this.depth = depth
 			this.height = height
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		rootjson() {
@@ -577,10 +595,11 @@ Metaplex.primitives = {
 				this.SIZE = this.radius
 			}
 			this.angle = angle
-			this.center = center
 			if (center) {
 				this.rotz(-this.angle/2)
 			}
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		rootjson() {
@@ -612,6 +631,8 @@ Metaplex.primitives = {
 			this.dimension = 3
 			this.majorRadius = majorRadius
 			this.minorRadius = minorRadius
+			
+			Metaplex.utils.checkValues(this)
 		}
 
 		rootjson() {
@@ -626,12 +647,58 @@ Metaplex.primitives = {
 			super();
 			this.dimension = 2
 			this.radius = radius
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		rootjson() {
 			return {
 				type:"circle"
 				,radius:this.radius
+			}
+		}		
+	}
+	,ngon:class extends Metaplex.solid {
+		constructor(radius,sides) {
+			super();
+			this.dimension = 2
+			this.radius = radius
+			this.sides = sides
+			
+			Metaplex.utils.checkValues(this)
+		}
+		
+		rootjson() {
+			return {
+				type:"$fn"
+				,fn:this.sides
+				,child:{
+					type:"circle"
+					,radius:this.radius
+				}
+			}
+		}		
+	}
+	,nprism:class extends Metaplex.solid {
+		constructor(height,radius,sides) {
+			super();
+			this.dimension = 3
+			this.height = height
+			this.radius = radius
+			this.sides = sides
+			
+			Metaplex.utils.checkValues(this)
+		}
+		
+		rootjson() {
+			return {
+				type:"$fn"
+				,fn:this.sides
+				,child:{
+					type:"cylinder"
+					,height:this.height
+					,radius:this.radius
+				}
 			}
 		}		
 	}
@@ -645,6 +712,8 @@ Metaplex.primitives = {
 			this.dimension = 2
 			this.width = x
 			this.depth = y
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		rootjson() {
@@ -664,6 +733,8 @@ Metaplex.primitives = {
 			if (center) {
 				this.rotz(-this.angle/2)
 			}
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		rootjson() {
@@ -701,7 +772,9 @@ Metaplex.primitives = {
 				x*=this.rescaleFactor
 				y*=this.rescaleFactor
 				this.points.push([x,y])
-			}			
+			}
+			
+			Metaplex.utils.checkValues(this)			
 		}
 		
 		rootjson() {
@@ -730,6 +803,8 @@ Metaplex.primitives = {
 			this.direction = options.direction || "ltr"
 			this.language = options.language || "en"
 			this.script = options.script || "latin"
+			
+			Metaplex.utils.checkValues(this)
 		}	
 		
 		rootjson() {
@@ -754,9 +829,11 @@ Metaplex.primitives = {
 			this.dimension = 3
 			this.helixRadius = helixRadius
 			this.threadRadius = threadRadius
-			this.options = options
+			this.options = options || {}
 			this.pitch = pitch
 			this.length = length
+			
+			Metaplex.utils.checkValues(this)
 		}
 	
 		rootjson() {
@@ -1072,7 +1149,21 @@ Metaplex.mat4 = class {
 
 Metaplex.log = {
 	error:function(s) {
-		var err = new Error(s)
+		var err = new FilteredError(s)
+		err.filter(frame => frame.path != __filename)
+		err.filter(frame => frame.type != "node")
+
+		/*
+		var arr = ["a"]
+		arr.forEach(function(elem) {
+			var error = new FilteredError(elem)
+			console.log(error.stack)
+			for (var i = 0; i<error.parsedStack.length; i++) {
+				console.log(error.parsedStack[i].type)
+			}
+		})
+		*/
+		
 		console.error(colors.red(colors.inverse("METAPLEX")+"\t"+err.stack))
 	}
 	,debug:function(s) {
