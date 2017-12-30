@@ -1,6 +1,8 @@
 const fs = require("fs")
 const path = require("path")
 const colors = require("colors")
+var Metaplex = require("../metaplex.js")
+
 
 var headers = []
 
@@ -168,55 +170,67 @@ function tempMeshVariable() {
 
 var operators = {
 	"translate":{
-		parse(o,l,d) {
-			return parse(o,l,d).text+".transform(new Matrix3D().translation("+o.x+","+o.y+","+o.z+"))"
+		parse(o,l,d,p) {
+			var lower = parse(o,l,d)
+			var text = lower.text+".transform(new Matrix3D().translation("+o.x+","+o.y+","+o.z+"))"
+			return {text:text,data:lower.data}
 		}	
 	}
 	,"rotate":{
-		parse(o,l,d) {
+		parse(o,l,d,p) {
+			var lower = parse(o,l,d)
 			if (o.x == 0 && o.y == 0) {
-				return parse(o,l,d).text+".transform(new Matrix3D().rotationZ("+o.z+"))"
+				var text = lower.text+".transform(new Matrix3D().rotationZ("+Metaplex.utils.degreesToRadians(o.z)+"))"
+			} else if (o.x == 0 && o.z == 0) {
+				var text = lower.text+".transform(new Matrix3D().rotationY("+Metaplex.utils.degreesToRadians(o.y)+"))"
+			} else if (o.y == 0 && o.z == 0) {
+				var text = lower.text+".transform(new Matrix3D().rotationX("+Metaplex.utils.degreesToRadians(o.x)+"))"
 			} else {
-				return parse(o,l,d).text+".transform(new Matrix3D().rotationZ("+o.x+","+o.y+","+o.z+"))"
+				err("Rotation in multiple axes simultaneously is currenlty not supported.")
 			}
+			return {text:text,data:lower.data}
 		}		
 	}
 	,"scale":{
-		parse(o,l,d) {
-			return parse(o,l,d).text+".transform(new Matrix3D().scaling("+o.x+","+o.y+","+o.z+"))"
+		parse(o,l,d,p) {
+			var lower = parse(o,l,d)
+			var text = lower.text+".transform(new Matrix3D().scaling("+o.x+","+o.y+","+o.z+"))"
+			return {text:text,data:lower.data}
 		}		
 	}
 	,"mirror":{
-		parse(o,l,d) {
-			return parse(o,l,d).text+".transform(new Matrix3D().scaling("+(-o.x)+","+(-o.y)+","+(-o.z)+")).flipNormals()" //TODO: this won't work correctly in all cases (the values are supposed to define a plane to mirror on), but this will work for now.
+		parse(o,l,d,p) {
+			var lower = parse(o,l,d)
+			var text = lower.text+".transform(new Matrix3D().scaling("+(-o.x)+","+(-o.y)+","+(-o.z)+")).flipNormals()" //TODO: this won't work correctly in all cases (the values are supposed to define a plane to mirror on), but this will work for now.
+			return {text:text,data:lower.data}
 		}		
 	}
 	/*
 	,"linear_extrude":{
-		parse(o,l,d) {
+		parse(o,l,d,p) {
 			return "linear_extrude(height="+o.height+",convexity=10,twist="+o.twist+",scale="+o.scale+") {\n"+parse(o,l,d)+"\n}"
 		}
 	}
 	,"rotate_extrude":{
-		parse(o,l,d) {
+		parse(o,l,d,p) {
 			return "rotate_extrude(angle="+o.angle+genFnParam(d)+",convexity=2) {\n"+parse(o,l,d)+"\n}"
 		}
 	}
 	*/
 	,"cylinder":{
-		parse(o,l,d) {
+		parse(o,l,d,p) {
 			return "primitive_cylinder("+o.radius+genFnParam(d)+","+o.height+")"
 		}
 	}
 	/*
 	,"sphere":{
-		parse(o,l,d) {
+		parse(o,l,d,p) {
 			return "sphere("+o.radius+genFnParam(d)+")"
 		}
 	}
 	*/
 	,"box":{
-		parse(o,l,d) {
+		parse(o,l,d,p) {
 			return "primitive_box("+o.width+","+o.depth+","+o.height+")"
 		}
 	}
@@ -239,7 +253,7 @@ var operators = {
 	}
 	*/
 	,"polygon":{
-		parse(o,l,d) {
+		parse(o,l,d,p) {
 			return "primitive_polygon("+o.points+")"
 		}
 	}
@@ -297,18 +311,18 @@ var operators = {
 	*/
 	
 	,"union":{
-		parse(o,l,d) {
-			return generateCallbackOperation(o,l,d,"unite")
+		parse(o,l,d,p) {
+			return generateCallbackOperation(o,l,d,p,"unite")
 		}
 	}
 	,"difference":{
-		parse(o,l,d) {
-			return generateCallbackOperation(o,l,d,"subtract","flipNormals()")
+		parse(o,l,d,p) {
+			return generateCallbackOperation(o,l,d,p,"subtract")
 		}
 	}
 	,"intersection":{
-		parse(o,l,d) {
-			return generateCallbackOperation(o,l,d,"intersect")
+		parse(o,l,d,p) {
+			return generateCallbackOperation(o,l,d,p,"intersect")
 		}
 	}
 	/*
@@ -329,7 +343,7 @@ var operators = {
 	}
 	*/
 	,"$fn":{
-		parse(o,l,d) {
+		parse(o,l,d,p) {
 			var dataCopy = copy(d)
 			dataCopy.fn = o.fn
 			return parse(o,l,dataCopy)
@@ -353,13 +367,13 @@ var operators = {
 	}
 	*/
 	,"empty":{
-		parse(o,l,d) {
+		parse(o,l,d,p) {
 			return "new Mesh3D()"
 		}
 	}
 }
 
-function generateCallbackOperation(o,l,d,operation,child2Method) {
+function generateCallbackOperation(o,l,d,p,operation,child2Method) {
 	nCallbackLevel++
 	if (!child2Method) {
 		child2Method = ""
@@ -375,25 +389,40 @@ function generateCallbackOperation(o,l,d,operation,child2Method) {
 	var previous1; //Any previous callbacks
 	var previous2;
 	
-	if (child1.callbackArgument) {
-		expr1 = child1.callbackArgument
+	if (child1.data.callbackArgument) {
+		expr1 = child1.data.callbackArgument
 		previous1 = child1.text
+		if (previous1.substr(-1) != "\n") {
+			previous1+="\n"
+		}
 	} else {
 		expr1 = child1.text
 		previous1 = ""
 	}
 	
-	if (child2.callbackArgument) {
-		expr2 = child2.callbackArgument
+	if (child2.data.callbackArgument) {
+		expr2 = child2.data.callbackArgument
 		previous2 = child2.text
+		if (previous2.substr(-1) != "\n") {
+			previous2+="\n"
+		}
 	} else {
 		expr2 = child2.text
 		previous2 = ""
 	}
+	
 	var callbackArgument = tempMeshVariable();
 	
-	var text = previous1+previous2+expr1+"."+operation+"("+expr2+child2Method+",function("+callbackArgument+") {"+(l.level > 0 ? "\nmesh" : "")
-	return {text:text,callbackArgument:callbackArgument}
+	var callbackFirstLine;
+	var dontAddFirstLine = ["union","difference","intersection"]
+	if (l.level <= 1 || dontAddFirstLine.indexOf(p.type) != -1) {
+		callbackFirstLine = ""
+	} else {
+		callbackFirstLine = callbackArgument
+	}
+	
+	var text = previous1+previous2+expr1+"."+operation+"("+expr2+child2Method+",function("+callbackArgument+") {\n"+callbackFirstLine
+	return {text:text,data:{callbackArgument:callbackArgument},lastWasCallback:true}
 }
 
 function copy(obj) {
@@ -441,22 +470,23 @@ function parse(obj,loc,tag,data) {
 		data = tag
 		tag = undefined
 	}
-	
+	var objToCallWith;
 	if (!loc) { //usually only true if root
 		loc = new Location()
+		objToCallWith = obj;
 	} else {
 		if (!tag) {
 			tag = "child"
 		}
 		loc = loc.push(obj.type)
-		obj = obj[tag]
+		objToCallWith = obj[tag]
 	}
-	var type = obj.type
+	var type = objToCallWith.type
 	if (operators[type]) {
 		try {
-			var parsed = operators[type].parse(obj,loc,data)
+			var parsed = operators[type].parse(objToCallWith,loc,data,obj)
 			if (typeof parsed == "string") {
-				return {text:parsed} //Must be in object format
+				return {text:parsed,data:{}} //Must be in object format
 			} else {
 				return parsed
 			}
@@ -498,12 +528,16 @@ function initparse(data,options) {
 	
 	options = combineOptionsListWithDefaults(options,DEFAULT_OPTIONS)
 	debug = options.debug
-	var out = parse(data,undefined,defaultData).text
+	var parsed = parse(data,undefined,defaultData)
+	var out = parsed.text
 	if (nCallbackLevel == 0) {
-		out = "var mesh = "+out
+		out = "callback(Solid.make("+out+"))"
+	} else {
+		if (!parsed.lastWasCallback) {
+			out+="\n"
+		}
+		out += "callback(Solid.make("+parsed.data.callbackArgument+"))"
 	}
-	out += "\ncallback(Solid.make(tempMesh_0))"
-	
 	for (var i = 0; i<nCallbackLevel; i++) {
 		out += "\n})"
 	}
