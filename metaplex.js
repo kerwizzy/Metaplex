@@ -161,15 +161,51 @@ var Metaplex = {
 			return out
 		}
 		
-		save(path,options) {
-			Metaplex.save(this.json(),path,options)
+		save(path,a,b) { 
+			//examples:		
+			// "blah.scad",{debug:true}
+			// "blah.js","Autodesk Shape Generator",{debug:true}
+			var options
+			var exporter
+			if (typeof a == "string") {
+				options = b
+				exporter = a
+			} else {
+				options = a
+			}
+			
+			Metaplex.save(this.json(),path,options,exporter)
 		}
 		
 		exportAs(exporter,options) {
 			return Metaplex.exportAs(this.json(),exporter,options)
 		}
 	}
+	,utils:{
+		removeExtension(path) {
+			path = path.split(".")
+			path.pop();
+			return path.join(".")
+		}
+
+		,getExtension(path) {
+			path = path.split(".")
+			return path.pop();
+		}
+
+		,radiansToDegrees(r) {
+			return r/(2*Math.PI)*360
+		}
+		,degreesToRadians(d) {
+			return d/360*2*Math.PI
+		}
+		,slopeStretch(m) {
+			return 1/(Math.sin(Math.atan(m)))
+		}
+	}
 }
+
+module.exports = Metaplex; //TODO: this was put here to try to allow other modules to access the utils object even when they themselves were loaded by Metaplex. Doing this worked even better than expected. Does it have any bad effects?
 
 Metaplex.group = class extends Metaplex.solid {
 	constructor() {
@@ -1034,41 +1070,23 @@ Metaplex.mat4 = class {
 }
 
 
-
-Metaplex.utils = {
-	removeExtension(path) {
-		path = path.split(".")
-		path.pop();
-		return path.join(".")
-	}
-
-	,getExtension(path) {
-		path = path.split(".")
-		return path.pop();
-	}
-	
-	,radiansToDegrees(r) {
-		return r/(2*Math.PI)*360
-	}
-	,degreesToRadians(d) {
-		return d/360*2*Math.PI
-	}
-	,slopeStretch(m) {
-		return 1/(Math.sin(Math.atan(m)))
-	}
-}
-
 Metaplex.log = {
 	error:function(s) {
 		var err = new Error(s)
 		console.error(colors.red(colors.inverse("METAPLEX")+"\t"+err.stack))
+	}
+	,debug:function(s) {
+		console.log(colors.green(colors.inverse("METAPLEX")+"\t"+s))
 	}	
 }
 
-Metaplex.save = function(list,path,options) {
+Metaplex.save = function(list,path,options,exporter) {
 	var type = Metaplex.utils.getExtension(path)
+	if (exporter) {
+		type = exporter;
+	}
 	if (!Metaplex.exporters[type]) {
-		Metaplex.log.error("Cannot find exporter module for file type '"+type+"'.")
+		Metaplex.log.error("Cannot find exporter module for file type '"+type+"'. Aborting save.")
 	} else {
 		fs.writeFileSync(path,Metaplex.exportAs(list,type,options),"utf8")
 	}
