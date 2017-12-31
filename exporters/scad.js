@@ -107,7 +107,7 @@ var operators = {
 		parse(o,l,d) {
 			var out;
 			if (o.mode == "radius") {
-				out = "offset(r="+o.distance+")"
+				out = "offset(r="+o.distance+genFnParam(d)+")"
 			} else if (o.mode == "delta") {
 				out = "offset(delta="+o.distance+")"
 			} else if (o.mode == "chamfer") {
