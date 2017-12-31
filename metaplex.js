@@ -101,7 +101,7 @@ var Metaplex = {
 				this.operations.push(new Metaplex.operations.linear_extrude(height,twist,scale))
 				return this
 			} else {
-				throw 'Cannot use "linear_extrude" on a 3D object.'
+				Metaplex.log.error('Cannot use "linear_extrude" on a 3D object.')
 			}
 		}
 		
@@ -110,7 +110,7 @@ var Metaplex = {
 				this.operations.push(new Metaplex.operations.rotate_extrude(degrees))
 				return this
 			} else {
-				throw 'Cannot use "rotate_extrude" on a 3D object.'
+				Metaplex.log.error('Cannot use "rotate_extrude" on a 3D object.')
 			}
 		}
 		
@@ -200,8 +200,16 @@ var Metaplex = {
 		,degreesToRadians(d) {
 			return d/360*2*Math.PI
 		}
-		,slopeStretch(m) {
+		,slopeStretch(m) { //returns the factor by which the intersection of a wall rotated at slope <m> is larger than the thickness of the wall
 			return 1/(Math.sin(Math.atan(m)))
+		}
+		,slopeIntersectHorizontal(m,thickness) { //returns the length of the intersection between a wall of <thickness> at slope <m> with a horizontal line
+			var theta = Math.atan(m)
+			return Math.abs(thickness/Math.sin(theta))
+		}
+		,slopeIntersectVertical(m,thickness) { //returns the length of the intersection between a wall of <thickness> at slope <m> with a vertical line
+			var theta = Math.atan(m)
+			return Math.abs(thickness/Math.cos(theta))
 		}
 		,checkValues(obj) {
 			var keys = Object.keys(obj)
@@ -253,6 +261,8 @@ Metaplex.operations = {
 			this.x = x
 			this.y = y
 			this.z = z
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		json(child) {
@@ -272,6 +282,8 @@ Metaplex.operations = {
 			this.x = x
 			this.y = y
 			this.z = z
+			
+			Metaplex.utils.checkValues(this)
 		}
 
 		json(child) {
@@ -291,6 +303,8 @@ Metaplex.operations = {
 			this.x = x
 			this.y = y
 			this.z = z
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		
@@ -311,6 +325,8 @@ Metaplex.operations = {
 			this.x = x
 			this.y = y
 			this.z = z
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		
@@ -329,6 +345,8 @@ Metaplex.operations = {
 		constructor(ob) {
 			super()
 			this.ob = ob
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		json(child) {
@@ -345,6 +363,8 @@ Metaplex.operations = {
 		constructor(ob) {
 			super()
 			this.ob = ob
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		json(child) {
@@ -361,6 +381,8 @@ Metaplex.operations = {
 		constructor(ob) {
 			super()
 			this.ob = ob
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		json(child) {
@@ -381,6 +403,8 @@ Metaplex.operations = {
 			this.height = height
 			this.twist = twist
 			this.scale = scale
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		json(child) {
@@ -399,6 +423,8 @@ Metaplex.operations = {
 			super()
 			this.angle = angle
 			this.dimension = 3
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		json(child) {
@@ -415,6 +441,8 @@ Metaplex.operations = {
 			super()
 			this.distance = distance
 			this.mode = mode
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		json(child) {
@@ -431,6 +459,8 @@ Metaplex.operations = {
 		constructor(fn) {
 			super()
 			this.fn = fn
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		json(child) {
@@ -450,6 +480,8 @@ Metaplex.operations = {
 			this.g = g
 			this.b = b
 			this.a = a	
+			
+			Metaplex.utils.checkValues(this)
 		}
 		
 		json(child) {
@@ -469,6 +501,8 @@ Metaplex.operations = {
 			super()
 			this.name = name
 			this.alpha= alpha
+			
+			Metaplex.utils.checkValues(this)
 		}
 
 		json(child) {
@@ -616,7 +650,7 @@ Metaplex.primitives = {
 					out.sub(new Metaplex.primitives.cube(this.SIZE*2*1.02).translate(-this.SIZE*1.02,0,-0.01).rotz(this.angle))
 				}
 			} else {
-				throw "Error: Angles > 180 are currently not supported. Angle = "+this.angle
+				Metaplex.log.error("Wedge angles > 180 are currently not supported. Angle = "+this.angle)
 			}
 			
 			
@@ -751,7 +785,7 @@ Metaplex.primitives = {
 					out.sub(new Metaplex.primitives.square(this.radius*2*1.02).translate(-this.radius*1.02,0,0).rotz(this.angle))
 				}
 			} else {
-				throw "Error: Angles > 180 are currently not supported. Angle = "+this.angle
+				Metaplex.log.error("Wedge angles > 180 are currently not supported. Angle = "+this.angle)
 			}
 			
 			
@@ -782,7 +816,7 @@ Metaplex.primitives = {
 				type:"scale"
 				,x:1/this.rescaleFactor
 				,y:1/this.rescaleFactor
-				,z:1/this.rescaleFactor
+				,z:1
 				,child:{
 					type:"polygon"
 					,points:this.points
@@ -1248,7 +1282,7 @@ Metaplex.makeConverter = function(unit) {
 					return Metaplex.convert(num).from(s.substr(i)).to(unit)
 				}
 			}
-			throw new Error("Error: could not parse unit.")
+			Metaplex.log.error("Could not parse unit.")
 		} else {
 			return Metaplex.convert(s).from(u).to(unit)
 		}		
