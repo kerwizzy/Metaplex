@@ -18,6 +18,144 @@ var Metaplex = {
 			this.operations[this.operations.length-1] = v
 		}
 		
+		get dimension() {
+			var dim = this.rootdimension
+			for (var i = 0; i<this.operations.length; i++) {
+				dim = this.operations[i].transformDimension(dim)
+			}
+			return dim
+		}
+		
+		get boundingBox() { //returns something in the format [[minx,miny,minz],[maxx,maxy,maxz]]
+			var bounds = this.rootboundingbox
+			if (typeof bounds == "undefined") {
+				Metaplex.log.error("Primitive bounds not defined.",false)
+				return;
+			}
+			for (var i = 0; i<this.operations.length; i++) {
+				bounds = this.operations[i].transformBoundingBox(bounds)
+				if (typeof bounds == "undefined") {
+					Metaplex.log.error("Bounding box transform of operation not defined.",false)
+					return;
+				}
+			}
+			return bounds
+		}
+		
+		get minX() {
+			return this.boundingBox[0][0]			
+		}
+		
+		get minY() {
+			return this.boundingBox[0][1]			
+		}
+		
+		get minZ() {
+			return this.boundingBox[0][2]			
+		}
+		
+		get maxX() {
+			return this.boundingBox[1][0]			
+		}
+		
+		get maxY() {
+			return this.boundingBox[1][1]			
+		}
+		
+		get maxZ() {
+			return this.boundingBox[1][2]			
+		}
+		
+		get centerX() {
+			return (this.minX+this.maxX)/2
+		}
+		
+		get centerY() {
+			return (this.minY+this.maxY)/2
+		}
+		
+		get centerZ() {
+			return (this.minZ+this.maxZ)/2
+		}
+		
+		//Align Min
+		alignMinX(val) {
+			if (val instanceof Metaplex.solid) val = val.minX
+			
+			this.translate(val-this.minX,0,0)
+			return this
+		}
+		
+		alignMinY(val) {
+			if (val instanceof Metaplex.solid) val = val.minY
+			
+			this.translate(0,val-this.minY,0)
+			return this
+		}
+		
+		alignMinZ(val) {
+			if (val instanceof Metaplex.solid) val = val.minZ
+			
+			this.translate(0,0,val-this.minZ)
+			return this
+		}
+		
+		//Align Center
+		alignCenterX(val) {
+			if (val instanceof Metaplex.solid) val = val.centerX
+			
+			this.translate(val-this.centerX,0,0)
+			return this
+		}
+		
+		alignCenterY(val) {
+			if (val instanceof Metaplex.solid) val = val.centerY
+			
+			this.translate(0,val-this.centerY,0)
+		}
+		
+		alignCenterZ(val) {
+			if (val instanceof Metaplex.solid) val = val.centerZ
+			
+			this.translate(0,0,val-this.centerZ)
+			return this
+		}
+		
+		//Align Max
+		alignMaxX(val) {
+			if (val instanceof Metaplex.solid) val = val.maxX
+			
+			this.translate(val-this.maxX,0,0)
+			return this
+		}
+		
+		alignMaxY(val) {
+			if (val instanceof Metaplex.solid) val = val.maxY
+			
+			this.translate(0,val-this.maxY,0)
+			return this
+		}
+		
+		alignMaxZ(val) {
+			if (val instanceof Metaplex.solid) val = val.maxZ
+			
+			this.translate(0,0,val-this.maxZ)
+			return this
+		}
+		
+		alignCenterXY(ob) {
+			this.alignCenterX(ob)
+			this.alignCenterY(ob)
+			return this
+		}
+		
+		alignCenterXYZ(ob) {
+			this.alignCenterX(ob)
+			this.alignCenterY(ob)
+			this.alignCenterZ(ob)
+			return this
+		}
+				
 		copyTopOperation(ob) {
 			this.operations.push(ob.lastOperation)
 			return this
@@ -81,7 +219,7 @@ var Metaplex = {
 		}
 		
 		copy() {
-			return new Metaplex.copy(this.json(),this.dimension)
+			return new Metaplex.copy(this.json(),this.dimension,this.boundingBox)
 		}
 		
 		offset(amount,mode) {
@@ -89,7 +227,6 @@ var Metaplex = {
 			return this
 		}
 		
-		//BUG: dimension should be set to 3 after an extrude..
 		linear_extrude(height,twist,scale) {
 			if (this.dimension != 3) {
 				if (!scale) {
@@ -188,12 +325,10 @@ var Metaplex = {
 			path.pop();
 			return path.join(".")
 		}
-
 		,getExtension(path) {
 			path = path.split(".")
 			return path.pop();
 		}
-
 		,radiansToDegrees(r) {
 			return r/(2*Math.PI)*360
 		}
@@ -219,6 +354,16 @@ var Metaplex = {
 				}
 			}
 		}
+		,copyBoundingBox(b) {
+			var minX = b[0][0]
+			var minY = b[0][1]
+			var minZ = b[0][2]
+			var maxX = b[1][0]
+			var maxY = b[1][1]
+			var maxZ = b[1][2]
+			
+			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
+		}
 	}
 }
 
@@ -237,9 +382,10 @@ Metaplex.group = class extends Metaplex.solid {
 }
 
 Metaplex.copy = class extends Metaplex.solid {
-	constructor(json,dimension) {
+	constructor(json,dimension,bounds) {
 		super()
-		this.dimension = dimension
+		this.rootdimension = dimension
+		this.rootboundingbox = bounds
 		this.parent = json
 	}
 	
@@ -248,10 +394,45 @@ Metaplex.copy = class extends Metaplex.solid {
 	}
 }
 
+//TODO: work on rotation bounding box size increase build up
 Metaplex.operation = class {
 	constructor() {
 		
-	}	
+	}
+	
+	transformBoundingBox(box) {
+		var matrix = this.matrix
+		if (matrix) {
+			var minX = box[0][0]
+			var minY = box[0][1]
+			var minZ = box[0][2]
+			var maxX = box[1][0]
+			var maxY = box[1][1]
+			var maxZ = box[1][2]
+			
+			var a = matrix.transform(new Metaplex.vec3(maxX,maxY,minZ)) //counter-clockwise on lower
+			var b = matrix.transform(new Metaplex.vec3(minX,maxY,minZ))
+			var c = matrix.transform(new Metaplex.vec3(minX,minY,minZ))
+			var d = matrix.transform(new Metaplex.vec3(maxX,minY,minZ))
+			
+			var e = matrix.transform(new Metaplex.vec3(maxX,maxY,maxZ)) //counter-clockwise on upper
+			var f = matrix.transform(new Metaplex.vec3(minX,maxY,maxZ))
+			var g = matrix.transform(new Metaplex.vec3(minX,minY,maxZ))
+			var h = matrix.transform(new Metaplex.vec3(maxX,minY,maxZ))		
+			
+			minX = Math.min(a.x,b.x,c.x,d.x,e.x,f.x,g.x,h.x)
+			maxX = Math.max(a.x,b.x,c.x,d.x,e.x,f.x,g.x,h.x)
+			
+			
+			minY = Math.min(a.y,b.y,c.y,d.y,e.y,f.y,g.y,h.y)
+			maxY = Math.max(a.y,b.y,c.y,d.y,e.y,f.y,g.y,h.y)
+		
+			minZ = Math.min(a.z,b.z,c.z,d.z,e.z,f.z,g.z,h.z)
+			maxZ = Math.max(a.z,b.z,c.z,d.z,e.z,f.z,g.z,h.z)			
+			
+			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
+		}
+	}
 }
 
 Metaplex.operations = {
@@ -265,6 +446,14 @@ Metaplex.operations = {
 			Metaplex.utils.checkValues(this)
 		}
 		
+		get matrix() {
+			return new Metaplex.mat4().translate(this.x,this.y,this.z)
+		}
+		
+		transformDimension(d) {
+			return d
+		}
+		
 		json(child) {
 			return {
 				type:"translate"
@@ -273,7 +462,7 @@ Metaplex.operations = {
 				,z:this.z
 				,child:child				
 			}
-		}
+		}		
 	}
 
 	,rotate:class extends Metaplex.operation {
@@ -285,6 +474,14 @@ Metaplex.operations = {
 			
 			Metaplex.utils.checkValues(this)
 		}
+		
+		get matrix() {
+			return new Metaplex.mat4().rotateMultiple(Metaplex.utils.degreesToRadians(this.x),Metaplex.utils.degreesToRadians(this.y),Metaplex.utils.degreesToRadians(this.z))
+		}
+		
+		transformDimension(d) {
+			return d
+		}
 
 		json(child) {
 			return {
@@ -294,7 +491,7 @@ Metaplex.operations = {
 				,z:this.z
 				,child:child		
 			}
-		}
+		}		
 	}
 	
 	,scale:class extends Metaplex.operation {
@@ -307,6 +504,13 @@ Metaplex.operations = {
 			Metaplex.utils.checkValues(this)
 		}
 		
+		get matrix() {
+			return new Metaplex.mat4().scale(this.x,this.y.this.z)
+		}
+		
+		transformDimension(d) {
+			return d
+		}		
 		
 		json(child) {
 			return {
@@ -330,6 +534,18 @@ Metaplex.operations = {
 		}
 		
 		
+		get matrix() { //TODO: this isn't correct, but it will do for single-axis mirrors.
+			//See https://en.wikipedia.org/wiki/Householder_transformation
+			var sx = this.x
+			var sy = this.y
+			var sz = this.z
+			if (sx == 0) sx=-1
+			if (sy == 0) sy=-1
+			if (sz == 0) sz=-1
+			
+			return new Metaplex.mat4().scale(-sx,-sy,-sz)
+		}
+		
 		json(child) {
 			return {
 				type:"mirror"
@@ -347,6 +563,39 @@ Metaplex.operations = {
 			this.ob = ob
 			
 			Metaplex.utils.checkValues(this)
+		}
+		
+		transformDimension(d) {
+			return d
+		}
+		
+		transformBoundingBox(b) {
+			var minXa = b[0][0]
+			var minYa = b[0][1]
+			var minZa = b[0][2]
+			var maxXa = b[1][0]
+			var maxYa = b[1][1]
+			var maxZa = b[1][2]
+			
+			var obBounds = this.ob.boundingBox
+			
+			var minXb = obBounds[0][0]
+			var minYb = obBounds[0][1]
+			var minZb = obBounds[0][2]
+			var maxXb = obBounds[1][0]
+			var maxYb = obBounds[1][1]
+			var maxZb = obBounds[1][2]
+					
+			minX = Math.min(minXa,minXb)
+			maxX = Math.max(maxXa,maxXb)
+			
+			minY = Math.min(minYa,maxYb)
+			maxY = Math.max(minYa,maxYb)
+			
+			minZ = Math.min(minZa,maxZb)
+			maxZ = Math.max(minZa,maxZb)
+			
+			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
 		}
 		
 		json(child) {
@@ -367,6 +616,14 @@ Metaplex.operations = {
 			Metaplex.utils.checkValues(this)
 		}
 		
+		transformDimension(d) {
+			return d
+		}
+		
+		transformBoundingBox(b) { //Difference cannot increase the size of the box, and we don't have enough information to decide if it decreases it, so we just return the original box.
+			return Metaplex.utils.copyBoundingBox(b)
+		}
+		
 		json(child) {
 			var ob1 = child
 			var ob2 = this.ob.json()
@@ -385,6 +642,39 @@ Metaplex.operations = {
 			Metaplex.utils.checkValues(this)
 		}
 		
+		transformDimension(d) {
+			return d
+		}
+		
+		transformBoundingBox(b) {
+			var minXa = b[0][0]
+			var minYa = b[0][1]
+			var minZa = b[0][2]
+			var maxXa = b[1][0]
+			var maxYa = b[1][1]
+			var maxZa = b[1][2]
+			
+			var obBounds = this.ob.boundingBox
+			
+			var minXb = obBounds[0][0]
+			var minYb = obBounds[0][1]
+			var minZb = obBounds[0][2]
+			var maxXb = obBounds[1][0]
+			var maxYb = obBounds[1][1]
+			var maxZb = obBounds[1][2]
+					
+			minX = Math.max(minXa,minXb) //Notice this is Math.max, not min.
+			maxX = Math.min(maxXa,maxXb)
+			
+			minY = Math.max(minYa,maxYb)
+			maxY = Math.min(minYa,maxYb)
+			
+			minZ = Math.max(minZa,maxZb)
+			maxZ = Math.min(minZa,maxZb)
+			
+			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
+		}
+		
 		json(child) {
 			var ob1 = child
 			var ob2 = this.ob.json()
@@ -399,12 +689,28 @@ Metaplex.operations = {
 	,linear_extrude:class extends Metaplex.operation {
 		constructor(height,twist,scale) {
 			super()
-			this.dimension = 3
 			this.height = height
 			this.twist = twist
 			this.scale = scale
 			
 			Metaplex.utils.checkValues(this)
+		}
+		
+		transformDimension(d) {
+			return 3
+		}
+		
+		
+		//TODO: implement twist and scale
+		transformBoundingBox(b) {
+			var minX = b[0][0]
+			var minY = b[0][1]
+			var minZ = b[0][2]
+			var maxX = b[1][0]
+			var maxY = b[1][1]
+			var maxZ = b[1][2]
+			
+			return [[minX,minY,0],[maxX,maxY,this.height]]
 		}
 		
 		json(child) {
@@ -422,9 +728,24 @@ Metaplex.operations = {
 		constructor(angle) {
 			super()
 			this.angle = angle
-			this.dimension = 3
 			
 			Metaplex.utils.checkValues(this)
+		}
+		
+		//TODO: angle is not implemented
+		transformBoundingBox(b) {
+			var minX = b[0][0]
+			var minY = b[0][1]
+			var minZ = b[0][2]
+			var maxX = b[1][0]
+			var maxY = b[1][1]
+			var maxZ = b[1][2]
+			
+			return [[-maxX,-maxX,minY],[maxX,maxX,maxY]]
+		}
+		
+		transformDimension(d) {
+			return 3
 		}
 		
 		json(child) {
@@ -445,6 +766,23 @@ Metaplex.operations = {
 			Metaplex.utils.checkValues(this)
 		}
 		
+		transformDimension(d) {
+			return d
+		}
+		
+		transformBoundingBox(b) {
+			var minX = b[0][0]
+			var minY = b[0][1]
+			var minZ = b[0][2]
+			var maxX = b[1][0]
+			var maxY = b[1][1]
+			var maxZ = b[1][2]
+			
+			var d = this.distance
+			
+			return [[minX-d,minY-d,minZ-d],[maxX+d,maxY+d,maxZ+d]]
+		}
+		
 		json(child) {
 			return {
 				type:"offset"
@@ -461,6 +799,14 @@ Metaplex.operations = {
 			this.fn = fn
 			
 			Metaplex.utils.checkValues(this)
+		}
+		
+		transformDimension(d) {
+			return d
+		}
+		
+		transformBoundingBox(b) {
+			return Metaplex.utils.copyBoundingBox(b)
 		}
 		
 		json(child) {
@@ -484,6 +830,14 @@ Metaplex.operations = {
 			Metaplex.utils.checkValues(this)
 		}
 		
+		transformDimension(d) {
+			return d
+		}
+		
+		transformBoundingBox(b) {
+			return Metaplex.utils.copyBoundingBox(b)
+		}
+		
 		json(child) {
 			return {
 				type:"colorrgba"
@@ -503,6 +857,14 @@ Metaplex.operations = {
 			this.alpha= alpha
 			
 			Metaplex.utils.checkValues(this)
+		}
+		
+		transformDimension(d) {
+			return d
+		}
+		
+		transformBoundingBox(b) {
+			return Metaplex.utils.copyBoundingBox(b)
 		}
 
 		json(child) {
@@ -524,7 +886,7 @@ Metaplex.primitives = {
 		constructor(path) {
 			super()
 			this.path = path
-			this.dimension = 3
+			this.rootdimension = 3
 			
 			Metaplex.utils.checkValues(this)
 		}
@@ -539,10 +901,11 @@ Metaplex.primitives = {
 	,sphere:class extends Metaplex.solid{			
 		constructor(radius) {
 			super()
-			this.dimension = 3
+			this.rootdimension = 3
 			this.radius = radius
 			
 			Metaplex.utils.checkValues(this)
+			this.rootboundingbox = [[-this.radius,-this.radius,-this.radius],[this.radius,this.radius,this.radius]]
 		}
 		
 		rootjson() {
@@ -555,11 +918,13 @@ Metaplex.primitives = {
 	,cylinder:class extends Metaplex.solid{
 		constructor(height,radius) {
 			super()
-			this.dimension = 3
+			this.rootdimension = 3
 			this.height = height
 			this.radius = radius
 			
 			Metaplex.utils.checkValues(this)
+			
+			this.rootboundingbox = [[-this.radius,-this.radius,0],[this.radius,this.radius,this.height]]
 		}
 		
 		rootjson() {
@@ -573,15 +938,18 @@ Metaplex.primitives = {
 	,cone:class extends Metaplex.solid {
 		constructor(height,r1,r2) {
 			super()
-			this.dimension = 3
+			this.rootdimension = 3
 			this.height = height
 			this.radius1 = r1
 			if (!r2) {
 				r2 = 0
 			}
 			this.radius2 = r2
+			this.maxRadius = Math.max(this.radius1,this.radius2)
 			
 			Metaplex.utils.checkValues(this)
+			
+			this.rootboundingbox = [[-this.maxRadius,-this.maxRadius,0],[this.maxRadius,this.maxRadius,this.height]]
 		}
 		
 		rootjson() {
@@ -596,7 +964,7 @@ Metaplex.primitives = {
 	,box:class extends Metaplex.solid {
 		constructor(width,depth,height) {
 			super()
-			this.dimension = 3
+			this.rootdimension = 3
 			if (typeof depth == "undefined") {
 				depth = width
 				height = width
@@ -607,6 +975,8 @@ Metaplex.primitives = {
 			this.height = height
 			
 			Metaplex.utils.checkValues(this)
+			
+			this.rootboundingbox = [[0,0,0],[this.width,this.depth,this.height]] 
 		}
 		
 		rootjson() {
@@ -621,7 +991,7 @@ Metaplex.primitives = {
 	,wedge:class extends Metaplex.solid {
 		constructor(height,radius,angle,center) {
 			super();
-			this.dimension = 3
+			this.rootdimension = 3
 			this.height = height
 			this.radius = radius
 			this.SIZE = this.height
@@ -634,6 +1004,9 @@ Metaplex.primitives = {
 			}
 			
 			Metaplex.utils.checkValues(this)
+			
+			//TODO: this is just the same as the cylinder calculation. Doesn't account for angle
+			this.rootboundingbox = [[-this.radius,-this.radius,0],[this.radius,this.radius,this.height]]
 		}
 		
 		rootjson() {
@@ -662,13 +1035,16 @@ Metaplex.primitives = {
 	,torus:class extends Metaplex.solid {
 		constructor(majorRadius,minorRadius) {
 			super();
-			this.dimension = 3
+			this.rootdimension = 3
 			this.majorRadius = majorRadius
 			this.minorRadius = minorRadius
 			
 			Metaplex.utils.checkValues(this)
+			
+			var radius = this.majorRadius+this.minorRadius
+			this.rootboundingbox = [[-radius,-radius,-this.minorRadius],[radius,radius,this.minorRadius]]
 		}
-
+		
 		rootjson() {
 			var out = new Metaplex.primitives.circle(this.minorRadius)
 			out.translate(this.majorRadius,0,0)
@@ -679,10 +1055,12 @@ Metaplex.primitives = {
 	,circle:class extends Metaplex.solid {
 		constructor(radius) {
 			super();
-			this.dimension = 2
+			this.rootdimension = 2 
 			this.radius = radius
 			
 			Metaplex.utils.checkValues(this)
+			
+			this.rootboundingbox = [[-this.radius,-this.radius,0],[this.radius,this.radius,0]]
 		}
 		
 		rootjson() {
@@ -695,11 +1073,13 @@ Metaplex.primitives = {
 	,ngon:class extends Metaplex.solid {
 		constructor(radius,sides) {
 			super();
-			this.dimension = 2
+			this.rootdimension = 2
 			this.radius = radius
 			this.sides = sides
 			
 			Metaplex.utils.checkValues(this)
+			
+			this.rootboundingbox = [[-this.radius,-this.radius,0],[this.radius,this.radius,0]]
 		}
 		
 		rootjson() {
@@ -716,12 +1096,14 @@ Metaplex.primitives = {
 	,nprism:class extends Metaplex.solid {
 		constructor(height,radius,sides) {
 			super();
-			this.dimension = 3
+			this.rootdimension = 3
 			this.height = height
 			this.radius = radius
 			this.sides = sides
 			
 			Metaplex.utils.checkValues(this)
+			
+			this.rootboundingbox = [[-this.radius,-this.radius,0],[this.radius,this.radius,this.height]]
 		}
 		
 		rootjson() {
@@ -743,11 +1125,13 @@ Metaplex.primitives = {
 			if (typeof y == "undefined") {
 				y = x
 			}
-			this.dimension = 2
+			this.rootdimension = 2
 			this.width = x
 			this.depth = y
 			
 			Metaplex.utils.checkValues(this)
+			
+			this.rootboundingbox = [[0,0,0],[this.width,this.depth,0]]
 		}
 		
 		rootjson() {
@@ -761,7 +1145,7 @@ Metaplex.primitives = {
 	,arc:class extends Metaplex.solid {
 		constructor(radius,angle,center) {
 			super();
-			this.dimension = 2
+			this.rootdimension = 2
 			this.radius = radius
 			this.angle = angle
 			if (center) {
@@ -769,6 +1153,9 @@ Metaplex.primitives = {
 			}
 			
 			Metaplex.utils.checkValues(this)
+			
+			//TODO: this is just the same as circle
+			this.rootboundingbox = [[-this.radius,-this.radius,0],[this.radius,this.radius,0]]
 		}
 		
 		rootjson() {
@@ -797,16 +1184,33 @@ Metaplex.primitives = {
 			super();
 			this.rescaleFactor = 1000
 			
-			this.dimension = 2
+			this.rootdimension = 2
 			this.points = []
+			var minX = 0
+			var minY = 0
+			var maxX = 0
+			var maxY = 0
 			for (var i = 0; i<points.length; i++) {
 				var point = points[i]
 				var x = point[0]
 				var y = point[1]
+				if (x < minX) {
+					minX = x
+				} else if (x > maxX) {
+					maxX = x
+				}
+				if (y < minY) {
+					minY = y
+				} else if (y > maxY) {
+					maxY = y
+				}
+				
 				x*=this.rescaleFactor
 				y*=this.rescaleFactor
 				this.points.push([x,y])
 			}
+			
+			this.rootboundingbox = [[minX,minY,0],[maxX,maxY,0]]
 			
 			Metaplex.utils.checkValues(this)			
 		}
@@ -837,9 +1241,12 @@ Metaplex.primitives = {
 			this.direction = options.direction || "ltr"
 			this.language = options.language || "en"
 			this.script = options.script || "latin"
-			
+			this.rootdimension = 2
+			//TODO: make root bounding box
 			Metaplex.utils.checkValues(this)
 		}	
+		
+		
 		
 		rootjson() {
 			return {
@@ -860,13 +1267,13 @@ Metaplex.primitives = {
 	,threads:class extends Metaplex.solid {
 		constructor(helixRadius,threadRadius,pitch,length,options) {
 			super()
-			this.dimension = 3
+			this.rootdimension = 3
 			this.helixRadius = helixRadius
 			this.threadRadius = threadRadius
 			this.options = options || {}
 			this.pitch = pitch
 			this.length = length
-			
+			//TODO: make root bounding box
 			Metaplex.utils.checkValues(this)
 		}
 	
@@ -1112,6 +1519,62 @@ Metaplex.mat4 = class {
 		return Metaplex.glmat4.clone(this.data)
 	}
 	
+	/*
+	 0  1  2  3
+	 4  5  6  7
+	 8  9 10 11
+	12 13 14 15
+	*/
+	
+	transform(a,b,c) {
+		/*
+		Transforms a point using the matrix.
+		
+		Has 3 input/output modes
+		
+		transform(vec3) -> vec3
+		transform([x,y,z]) -> [x,y,z]
+		transform(x,y,z) -> [x,y,z]
+		
+		*/		
+		var x
+		var y
+		var z
+		
+		var mode = 0;
+		if (a instanceof Metaplex.vec3) {
+			x = a.x
+			y = a.y
+			z = a.z;
+			mode = 0
+		} else if (typeof b != "undefined") {
+			x = a
+			y = b
+			z = c
+			mode = 1
+		} else { //array
+			x = a[0]
+			y = a[1]
+			z = a[2]
+			mode = 1
+		}
+		var w = 1
+		
+		var m = this.data
+		
+		var outX = m[0]*x+m[4]*y+m[8]*z+m[12]*w
+		var outY = m[1]*x+m[5]*y+m[9]*z+m[13]*w
+		var outZ = m[2]*x+m[6]*y+m[10]*z+m[14]*w
+		//var outW = m[3]*x+m[7]*y+m[11]*z+m[15]*w
+	
+		
+		if (mode == 0) {
+			return new Metaplex.vec3(outX,outY,outZ)
+		} else {
+			return [outX,outY,outZ]
+		}
+	}
+	
 	invert() {
 		var out = []
 		Metaplex.glmat4.invert(out,this.clone())
@@ -1164,6 +1627,10 @@ Metaplex.mat4 = class {
 		return new Metaplex.mat4(out)
 	}
 	
+	rotateMultiple(x,y,z) {
+		return this.rotateX(x).rotateY(y).rotateZ(z)
+	}
+	
 	invert() {
 		var out = []
 		Metaplex.glmat4.invert(out,this.data)
@@ -1182,9 +1649,10 @@ Metaplex.mat4 = class {
 
 
 Metaplex.log = {
-	error:function(s) {
+	error:function(s,hideMetaplex) {
 		var err = new FilteredError(s)
-		err.filter(frame => frame.path != __filename)
+		if (typeof hideMetaplex == "undefined") hideMetaplex = true
+		if (hideMetaplex) err.filter(frame => frame.path != __filename)
 		err.filter(frame => frame.type != "node")
 
 		/*
