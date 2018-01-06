@@ -227,6 +227,17 @@ var Metaplex = {
 			return this
 		}
 		
+		minkowskiAdd(ob) {
+			this.operations.push(new Metaplex.operations.minkowskiAdd(ob))
+			return this
+		}
+		
+		minkowskiSub(ob) {
+			this.operations.push(new Metaplex.operations.minkowskiSub(ob,this.boundingBox))
+			return this
+		}
+		
+		
 		linear_extrude(height,twist,scale) {
 			if (this.dimension != 3) {
 				if (!scale) {
@@ -757,6 +768,121 @@ Metaplex.operations = {
 		}		
 	}
 	
+	,minkowskiAdd:class extends Metaplex.operation {
+		constructor(ob) {
+			super()
+			this.ob = ob
+			
+			Metaplex.utils.checkValues(this)
+		}
+		
+		transformDimension(d) {
+			return d
+		}
+		
+		transformBoundingBox(b) {
+			var minXa = b[0][0]
+			var minYa = b[0][1]
+			var minZa = b[0][2]
+			var maxXa = b[1][0]
+			var maxYa = b[1][1]
+			var maxZa = b[1][2]
+			
+			var obBounds = this.ob.boundingBox
+			
+			var minXb = obBounds[0][0]
+			var minYb = obBounds[0][1]
+			var minZb = obBounds[0][2]
+			var maxXb = obBounds[1][0]
+			var maxYb = obBounds[1][1]
+			var maxZb = obBounds[1][2]
+			
+			var minX = Math.min(minXa,minXa+minXb)
+			var maxX = Math.max(maxXa,maxXa+maxXb)
+			
+			var minY = Math.min(minYa,minYa+minYb)
+			var maxY = Math.max(maxYa,maxYa+maxYb)
+			
+			var minZ = Math.min(minZa,minZa+minZb)
+			var maxZ = Math.max(maxZa,maxZa+maxZb)
+			
+			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
+		}
+		
+		json(child) {
+			var ob1 = child
+			var ob2 = this.ob.json()
+			return {
+				type:"minkowskiAdd"
+				,child1:ob1
+				,child2:ob2
+			}			
+		}		
+	}
+	
+	//EXPERIMENTAL!!
+	//For other ideas/CGAL discussion, see http://cgal-discuss.949826.n4.nabble.com/Re-Any-idea-about-Minkowski-difference-td3166601.html
+	,minkowskiSub:class extends Metaplex.operation {
+		constructor(ob,bounds) {
+			super()
+			this.ob = ob
+			this.parentBoundingBox = bounds
+			
+			Metaplex.utils.checkValues(this)
+		}
+		
+		transformDimension(d) {
+			return d
+		}
+		
+		transformBoundingBox(b) { //TODO
+			var minXa = b[0][0]
+			var minYa = b[0][1]
+			var minZa = b[0][2]
+			var maxXa = b[1][0]
+			var maxYa = b[1][1]
+			var maxZa = b[1][2]
+			
+			var obBounds = this.ob.boundingBox
+			
+			var minXb = obBounds[0][0]
+			var minYb = obBounds[0][1]
+			var minZb = obBounds[0][2]
+			var maxXb = obBounds[1][0]
+			var maxYb = obBounds[1][1]
+			var maxZb = obBounds[1][2]
+			
+			var minX = Math.min(minXa,minXa+minXb)
+			var maxX = Math.max(maxXa,maxXa+maxXb)
+			
+			var minY = Math.min(minYa,minYa+minYb)
+			var maxY = Math.max(maxYa,maxYa+maxYb)
+			
+			var minZ = Math.min(minZa,minZa+minZb)
+			var maxZ = Math.max(maxZa,maxZa+maxZb)
+			
+			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
+		}
+		
+		json(child) {
+			var margin = 50
+			
+			var minX = this.parentBoundingBox[0][0]-margin
+			var minY = this.parentBoundingBox[0][1]-margin
+			var minZ = this.parentBoundingBox[0][2]-margin
+			var maxX = this.parentBoundingBox[1][0]+margin
+			var maxY = this.parentBoundingBox[1][1]+margin
+			var maxZ = this.parentBoundingBox[1][2]+margin
+			
+			var boundingBox = new Metaplex.primitives.box(maxX-minX,maxY-minY,maxZ-minZ).translate(minX,minY,minZ);
+			var box = boundingBox.copy();
+			box.sub(new Metaplex.copy(child,3)) //Child is in JSON, so we have to use copy 
+			box.minkowskiAdd(this.ob)
+			boundingBox.sub(box)
+			return boundingBox.json();
+		}		
+	}
+	
 	,offset:class extends Metaplex.operation {
 		constructor(distance,mode) {
 			super()
@@ -778,7 +904,7 @@ Metaplex.operations = {
 			var maxY = b[1][1]
 			var maxZ = b[1][2]
 			
-			var d = this.distance
+			this.d = this.distance			
 			
 			return [[minX-d,minY-d,minZ-d],[maxX+d,maxY+d,maxZ+d]]
 		}

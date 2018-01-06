@@ -118,6 +118,11 @@ var operators = {
 			return out+" "+parse(o,l,d)
 		}
 	}
+	,"minkowskiAdd":{
+		parse(o,l,d) {
+			return "minkowski() {\n"+parse(o,l,"child1",d)+"\n"+parse(o,l,"child2",d)+"\n}"
+		}
+	}
 	,"$fn":{
 		parse(o,l,d) {
 			var dataCopy = copy(d)
