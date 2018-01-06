@@ -8,6 +8,7 @@ var Metaplex = {
 	solid:class {
 		constructor() {
 			this.operations = []
+			this.originOperationOffset = 0;
 		}
 
 		get lastOperation() {
@@ -40,6 +41,49 @@ var Metaplex = {
 				}
 			}
 			return bounds
+		}
+		
+		transformPoint(point,transformationOffset) { //takes a point in the format [x,y,z] and transforms it according to this objects transformations (rotation, scale, etc)
+			point = point.slice(0); //Make a copy. The operation.transformPoint() methods will also do this, but we do it here also just in case the loop doesn't actually get run because of originTransformationOffset
+			for (var i = transformationOffset; i<this.operations.length; i++) {
+				point = this.operations[i].transformPoint(point)
+				if (typeof point == "undefined") {
+					Metaplex.log.error("Point transform of operation not defined.",false)
+					return;
+				}
+			}
+			return point
+		}		
+		
+		get origin() {
+			var origin;
+			if (this.overrideOrigin) {
+				origin = this.overrideOrigin
+			} else if (this.rootorigin) {
+				origin = this.rootorigin
+			} else {
+				origin = [0,0,0]
+			}		
+			
+			return this.transformPoint(origin,this.originOperationOffset)
+		}
+
+		setOrigin(a,b,c) {
+			var point = Metaplex.vec3.getVector(a,b,c).arr();
+			this.overrideOrigin = point
+			this.originOperationOffset = this.operations.length; //Need to set this so the transformations already applied don't get applied on the new origin
+		}
+		
+		get originX() {
+			return this.origin[0]
+		}
+		
+		get originY() {
+			return this.origin[1]
+		}
+		
+		get originZ() {
+			return this.origin[2]
 		}
 		
 		get minX() {
@@ -81,6 +125,7 @@ var Metaplex = {
 		//Align Min
 		alignMinX(val) {
 			if (val instanceof Metaplex.solid) val = val.minX
+			if (typeof val != "number") val = Metaplex.vec3.getVector(val).x
 			
 			this.translate(val-this.minX,0,0)
 			return this
@@ -88,6 +133,7 @@ var Metaplex = {
 		
 		alignMinY(val) {
 			if (val instanceof Metaplex.solid) val = val.minY
+			if (typeof val != "number") val = Metaplex.vec3.getVector(val).y
 			
 			this.translate(0,val-this.minY,0)
 			return this
@@ -95,6 +141,7 @@ var Metaplex = {
 		
 		alignMinZ(val) {
 			if (val instanceof Metaplex.solid) val = val.minZ
+			if (typeof val != "number") val = Metaplex.vec3.getVector(val).z
 			
 			this.translate(0,0,val-this.minZ)
 			return this
@@ -103,6 +150,7 @@ var Metaplex = {
 		//Align Center
 		alignCenterX(val) {
 			if (val instanceof Metaplex.solid) val = val.centerX
+			if (typeof val != "number") val = Metaplex.vec3.getVector(val).x
 			
 			this.translate(val-this.centerX,0,0)
 			return this
@@ -110,12 +158,14 @@ var Metaplex = {
 		
 		alignCenterY(val) {
 			if (val instanceof Metaplex.solid) val = val.centerY
+			if (typeof val != "number") val = Metaplex.vec3.getVector(val).y
 			
 			this.translate(0,val-this.centerY,0)
 		}
 		
 		alignCenterZ(val) {
 			if (val instanceof Metaplex.solid) val = val.centerZ
+			if (typeof val != "number") val = Metaplex.vec3.getVector(val).z
 			
 			this.translate(0,0,val-this.centerZ)
 			return this
@@ -124,6 +174,7 @@ var Metaplex = {
 		//Align Max
 		alignMaxX(val) {
 			if (val instanceof Metaplex.solid) val = val.maxX
+			if (typeof val != "number") val = Metaplex.vec3.getVector(val).x
 			
 			this.translate(val-this.maxX,0,0)
 			return this
@@ -131,6 +182,7 @@ var Metaplex = {
 		
 		alignMaxY(val) {
 			if (val instanceof Metaplex.solid) val = val.maxY
+			if (typeof val != "number") val = Metaplex.vec3.getVector(val).y
 			
 			this.translate(0,val-this.maxY,0)
 			return this
@@ -138,6 +190,7 @@ var Metaplex = {
 		
 		alignMaxZ(val) {
 			if (val instanceof Metaplex.solid) val = val.maxZ
+			if (typeof val != "number") val = Metaplex.vec3.getVector(val).z
 			
 			this.translate(0,0,val-this.maxZ)
 			return this
@@ -444,6 +497,13 @@ Metaplex.operation = class {
 			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
 		}
 	}
+	
+	transformPoint(point) {
+		var matrix = this.matrix
+		if (matrix) {
+			return matrix.transform(point);		
+		}
+	}
 }
 
 Metaplex.operations = {
@@ -516,7 +576,7 @@ Metaplex.operations = {
 		}
 		
 		get matrix() {
-			return new Metaplex.mat4().scale(this.x,this.y.this.z)
+			return new Metaplex.mat4().scale(this.x,this.y,this.z)
 		}
 		
 		transformDimension(d) {
@@ -542,8 +602,7 @@ Metaplex.operations = {
 			this.z = z
 			
 			Metaplex.utils.checkValues(this)
-		}
-		
+		}		
 		
 		get matrix() { //TODO: this isn't correct, but it will do for single-axis mirrors.
 			//See https://en.wikipedia.org/wiki/Householder_transformation
@@ -580,6 +639,10 @@ Metaplex.operations = {
 			return d
 		}
 		
+		transformPoint(p) {
+			return p.slice(0);
+		}
+		
 		transformBoundingBox(b) {
 			var minXa = b[0][0]
 			var minYa = b[0][1]
@@ -597,14 +660,14 @@ Metaplex.operations = {
 			var maxYb = obBounds[1][1]
 			var maxZb = obBounds[1][2]
 					
-			minX = Math.min(minXa,minXb)
-			maxX = Math.max(maxXa,maxXb)
+			var minX = Math.min(minXa,minXb)
+			var maxX = Math.max(maxXa,maxXb)
 			
-			minY = Math.min(minYa,maxYb)
-			maxY = Math.max(minYa,maxYb)
+			var minY = Math.min(minYa,minYb)
+			var maxY = Math.max(maxYa,maxYb)
 			
-			minZ = Math.min(minZa,maxZb)
-			maxZ = Math.max(minZa,maxZb)
+			var minZ = Math.min(minZa,minZb)
+			var maxZ = Math.max(maxZa,maxZb)
 			
 			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
 		}
@@ -629,6 +692,10 @@ Metaplex.operations = {
 		
 		transformDimension(d) {
 			return d
+		}
+		
+		transformPoint(p) {
+			return p.slice(0);
 		}
 		
 		transformBoundingBox(b) { //Difference cannot increase the size of the box, and we don't have enough information to decide if it decreases it, so we just return the original box.
@@ -657,6 +724,10 @@ Metaplex.operations = {
 			return d
 		}
 		
+		transformPoint(p) {
+			return p.slice(0);
+		}
+		
 		transformBoundingBox(b) {
 			var minXa = b[0][0]
 			var minYa = b[0][1]
@@ -674,14 +745,14 @@ Metaplex.operations = {
 			var maxYb = obBounds[1][1]
 			var maxZb = obBounds[1][2]
 					
-			minX = Math.max(minXa,minXb) //Notice this is Math.max, not min.
-			maxX = Math.min(maxXa,maxXb)
+			var minX = Math.max(minXa,minXb) //Notice this is Math.max, not min.
+			var maxX = Math.min(maxXa,maxXb)
 			
-			minY = Math.max(minYa,maxYb)
-			maxY = Math.min(minYa,maxYb)
+			var minY = Math.max(minYa,maxYb)
+			var maxY = Math.min(minYa,maxYb)
 			
-			minZ = Math.max(minZa,maxZb)
-			maxZ = Math.min(minZa,maxZb)
+			var minZ = Math.max(minZa,maxZb)
+			var maxZ = Math.min(minZa,maxZb)
 			
 			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
 		}
@@ -711,6 +782,9 @@ Metaplex.operations = {
 			return 3
 		}
 		
+		transformPoint(p) {
+			return p.slice(0);
+		}		
 		
 		//TODO: implement twist and scale
 		transformBoundingBox(b) {
@@ -741,6 +815,10 @@ Metaplex.operations = {
 			this.angle = angle
 			
 			Metaplex.utils.checkValues(this)
+		}
+		
+		transformPoint(p) {
+			return p.slice(0);
 		}
 		
 		//TODO: angle is not implemented
@@ -778,6 +856,10 @@ Metaplex.operations = {
 		
 		transformDimension(d) {
 			return d
+		}
+		
+		transformPoint(p) {
+			return p.slice(0);
 		}
 		
 		transformBoundingBox(b) {
@@ -833,6 +915,10 @@ Metaplex.operations = {
 		
 		transformDimension(d) {
 			return d
+		}
+		
+		transformPoint(p) {
+			return p.slice(0);
 		}
 		
 		transformBoundingBox(b) { //TODO
@@ -896,6 +982,10 @@ Metaplex.operations = {
 			return d
 		}
 		
+		transformPoint(p) {
+			return p.slice(0);
+		}
+		
 		transformBoundingBox(b) {
 			var minX = b[0][0]
 			var minY = b[0][1]
@@ -931,6 +1021,10 @@ Metaplex.operations = {
 			return d
 		}
 		
+		transformPoint(p) {
+			return p.slice(0);
+		}
+		
 		transformBoundingBox(b) {
 			return Metaplex.utils.copyBoundingBox(b)
 		}
@@ -960,6 +1054,10 @@ Metaplex.operations = {
 			return d
 		}
 		
+		transformPoint(p) {
+			return p.slice(0);
+		}
+		
 		transformBoundingBox(b) {
 			return Metaplex.utils.copyBoundingBox(b)
 		}
@@ -987,6 +1085,10 @@ Metaplex.operations = {
 		
 		transformDimension(d) {
 			return d
+		}
+		
+		transformPoint(p) {
+			return p.slice(0);
 		}
 		
 		transformBoundingBox(b) {
@@ -1467,6 +1569,34 @@ Metaplex.vec3 = class Vec3 {
 		this.updateMagnitude();
 	}
 	
+	static getVector(a,b,c) {
+		/*		
+		getVector(vec3) -> vec3
+		getVector([x,y,z]) -> vec3
+		getVector(x,y,z) -> vec3
+		
+		*/		
+		var x
+		var y
+		var z
+		
+		if (a instanceof Metaplex.vec3) {
+			x = a.x
+			y = a.y
+			z = a.z;
+		} else if (typeof b != "undefined") {
+			x = a
+			y = b
+			z = c
+		} else { //array
+			x = a[0]
+			y = a[1]
+			z = a[2]
+		}
+		return new Metaplex.vec3(x,y,z)
+		
+	}
+	
 	duplicate() { //Returns a new Metaplex.vec3 with exactly the same parameters as this one
 		return new Metaplex.vec3(this.x,this.y,this.z)
 	}
@@ -1708,30 +1838,16 @@ Metaplex.mat4 = class {
 	}
 	
 	translate(a,b,c) {
-		var arr;
-		if (a instanceof Metaplex.vec3) {
-			arr = vec3.arr();
-		} else if (typeof b != "undefined") {
-			arr = [a,b,c]
-		} else {
-			arr = a
-		}
+		var arr = Metaplex.vec3.getVector(a,b,c).arr();
 		var out = []
 		Metaplex.glmat4.translate(out,this.data,arr)
 		return new Metaplex.mat4(out)
 	}
 	
 	scale(a,b,c) {
-		var arr;
-		if (a instanceof Metaplex.vec3) {
-			arr = vec3.arr();
-		} else if (typeof b != "undefined") {
-			arr = [a,b,c]
-		} else {
-			arr = a
-		}
+		var arr = Metaplex.vec3.getVector(a,b,c).arr();
 		var out = []
-		Metaplex.glmat4.translate(out,this.data,arr)
+		Metaplex.glmat4.scale(out,this.data,arr)
 		return new Metaplex.mat4(out)
 	}
 	
