@@ -30,6 +30,32 @@ var operators = {
 			return "mirror(["+o.x+","+o.y+","+o.z+"]) "+parse(o,l,d)
 		}		
 	}
+	,"multmatrix":{
+		parse(o,l,d) {
+			var m = o.matrix.join(",").split(",")
+			/*
+			INPUT
+			0  1  2  3
+			4  5  6  7
+			8  9  10 11
+			12 13 14 15
+			
+			SCAD FORMAT
+			0 4 8  12
+			1 5 9  13
+			2 6 10 14
+			3 7 11 15
+			*/
+			
+			var line1 = [m[0],m[4],m[8],m[12]].join(",")
+			var line2 = [m[1],m[5],m[9],m[13]].join(",")
+			var line3 = [m[2],m[6],m[10],m[14]].join(",")
+			var line4 = [m[3],m[7],m[11],m[15]].join(",")
+			var out = "[["+([line1,line2,line3,line4].join("],["))+"]]"
+			
+			return "multmatrix("+out+") "+parse(o,l,d)
+		}		
+	}
 	,"linear_extrude":{
 		parse(o,l,d) {
 			return "linear_extrude(height="+o.height+",convexity=10,twist="+o.twist+",scale="+o.scale+") {\n"+parse(o,l,d)+"\n}"

@@ -161,6 +161,7 @@ var Metaplex = {
 			if (typeof val != "number") val = Metaplex.vec3.getVector(val).y
 			
 			this.translate(0,val-this.centerY,0)
+			return this
 		}
 		
 		alignCenterZ(val) {
@@ -269,6 +270,11 @@ var Metaplex = {
 		
 		mirrorZ() {
 			return this.mirror(0,0,1)
+		}
+		
+		multmatrix(matrix) {
+			this.operations.push(new Metaplex.operations.multmatrix(matrix))
+			return this
 		}
 		
 		copy() {
@@ -589,6 +595,25 @@ Metaplex.operations = {
 				,x:this.x
 				,y:this.y
 				,z:this.z
+				,child:child			
+			}
+		}
+	}
+	
+	,multmatrix:class extends Metaplex.operation {
+		constructor(matrix) {
+			super()
+			this.matrix = matrix
+		}
+
+		transformDimension(d) {
+			return d
+		}
+		
+		json(child) {
+			return {
+				type:"multmatrix"
+				,matrix:this.matrix.arr()
 				,child:child			
 			}
 		}
@@ -994,7 +1019,7 @@ Metaplex.operations = {
 			var maxY = b[1][1]
 			var maxZ = b[1][2]
 			
-			this.d = this.distance			
+			var d = this.distance			
 			
 			return [[minX-d,minY-d,minZ-d],[maxX+d,maxY+d,maxZ+d]]
 		}
@@ -1771,8 +1796,22 @@ Metaplex.mat4 = class {
 		}
 	}
 	
+	static getMatrix(a) {
+		if (a instanceof Metaplex.mat4) {
+			return a
+		} else {
+			return new Metaplex.mat4(a)
+		}
+	}
+	
 	clone() {
 		return Metaplex.glmat4.clone(this.data)
+	}
+	
+	multiply(mat4) {
+		var out = []
+		Metaplex.glmat4.multiply(out,this.data,Metaplex.mat4.getMatrix(mat4).data)
+		return new Metaplex.mat4(out)
 	}
 	
 	/*
@@ -1831,10 +1870,20 @@ Metaplex.mat4 = class {
 		}
 	}
 	
+	pointTowards(eye,point) {
+		var out = []
+		eye = Metaplex.vec3.getVector(eye).arr()
+		point = Metaplex.vec3.getVector(point).arr()
+		var up = [0,0,1]
+		Metaplex.glmat4.lookAt(out,eye,point,up)
+		var inverted = new Metaplex.mat4(out).invert()
+		return this.multiply(inverted.scale(-1,-1,-1))
+	}
+	
 	invert() {
 		var out = []
 		Metaplex.glmat4.invert(out,this.clone())
-		return out
+		return new Metaplex.mat4(out)
 	}
 	
 	translate(a,b,c) {
@@ -1877,6 +1926,10 @@ Metaplex.mat4 = class {
 		var out = []
 		Metaplex.glmat4.invert(out,this.data)
 		return new Metaplex.mat4(out)
+	}
+	
+	arr() {
+		return [this.data.slice(0,4),this.data.slice(4,8),this.data.slice(8,12),this.data.slice(12,16)]
 	}
 	
 	toString() {
