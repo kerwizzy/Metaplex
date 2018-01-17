@@ -15,16 +15,24 @@ var Metaplex = {
 		}
 		
 		applyOperation(operation) {
-			for (var i = 0; i<this.operations.length; i++) {
-				var op = this.operations[i]
-				if (op.isMultichild) {
-					op.applyToChildren(operation)
+			if (operation.isLocationTransform) { 
+				for (var i = 0; i<this.operations.length; i++) {
+					var op = this.operations[i]
+					if (op.isMultichild) {
+						op.applyToChildren(operation)
+					}
 				}
 			}
 			this.operations.push(operation)
 		}
 		
 		applyParentOperation(operation) {
+			for (var i = 0; i<this.operations.length; i++) {
+				var op = this.operations[i]
+				if (op.isMultichild) {
+					op.applyToChildren(operation)
+				}
+			}
 			this.parentOperations.push(operation)
 		}
 
@@ -480,6 +488,7 @@ module.exports = Metaplex; //TODO: this was put here to try to allow other modul
 Metaplex.group = class extends Metaplex.solid {
 	constructor() {
 		super()
+		this.rootboundingbox = [[0,0,0],[0,0,0]]
 	}
 	
 	rootjson() {
@@ -505,7 +514,7 @@ Metaplex.copy = class extends Metaplex.solid {
 //TODO: work on rotation bounding box size increase build up
 Metaplex.operation = class {
 	constructor() {
-		
+		this.isLocationTransform = true
 	}
 	
 	transformBoundingBox(box) {
@@ -696,6 +705,7 @@ Metaplex.operations = {
 			this.ob = ob
 			ob.isChild = true
 			this.isMultichild = true
+			this.isLocationTransform = false
 			
 			Metaplex.utils.checkValues(this)
 		}
@@ -757,6 +767,7 @@ Metaplex.operations = {
 			this.ob = ob
 			ob.isChild = true
 			this.isMultichild = true
+			this.isLocationTransform = false
 			
 			Metaplex.utils.checkValues(this)
 		}
@@ -793,6 +804,7 @@ Metaplex.operations = {
 			this.ob = ob
 			ob.isChild = true
 			this.isMultichild = true
+			this.isLocationTransform = false
 			
 			Metaplex.utils.checkValues(this)
 		}
@@ -855,6 +867,7 @@ Metaplex.operations = {
 			this.height = height
 			this.twist = twist
 			this.scale = scale
+			this.isLocationTransform = false
 			
 			Metaplex.utils.checkValues(this)
 		}
@@ -894,6 +907,7 @@ Metaplex.operations = {
 		constructor(angle) {
 			super()
 			this.angle = angle
+			this.isLocationTransform = false
 			
 			Metaplex.utils.checkValues(this)
 		}
@@ -933,6 +947,7 @@ Metaplex.operations = {
 			this.ob = ob
 			ob.isChild = true
 			this.isMultichild = true
+			this.isLocationTransform = false
 			
 			Metaplex.utils.checkValues(this)
 		}
@@ -997,6 +1012,7 @@ Metaplex.operations = {
 			this.ob = ob
 			ob.isChild = true
 			this.isMultichild = true
+			this.isLocationTransform = false
 			this.parentBoundingBox = bounds
 			
 			Metaplex.utils.checkValues(this)
@@ -1067,6 +1083,7 @@ Metaplex.operations = {
 			super()
 			this.distance = distance
 			this.mode = mode
+			this.isLocationTransform = false
 			
 			Metaplex.utils.checkValues(this)
 		}
@@ -1106,6 +1123,7 @@ Metaplex.operations = {
 		constructor(fn) {
 			super()
 			this.fn = fn
+			this.isLocationTransform = false
 			
 			Metaplex.utils.checkValues(this)
 		}
@@ -1140,6 +1158,8 @@ Metaplex.operations = {
 			this.b = b
 			this.a = a	
 			
+			this.isLocationTransform = false
+			
 			Metaplex.utils.checkValues(this)
 		}
 		
@@ -1172,6 +1192,7 @@ Metaplex.operations = {
 			super()
 			this.name = name
 			this.alpha= alpha
+			this.isLocationTransform = false
 			
 			Metaplex.utils.checkValues(this)
 		}
