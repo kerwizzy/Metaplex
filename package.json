@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "A js library to dynamically generate lower-level CAD code using js programs.",
   "main": "metaplex-watch.js",
-  "repository":"https://github.com/kerwizzy/Metaplex",
+  "repository": "https://github.com/kerwizzy/Metaplex",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

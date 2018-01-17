@@ -2,6 +2,7 @@ var fs = require("fs")
 var path = require("path")
 const child_process = require('child_process');
 var colors = require('colors');
+const pathutils = require("path")
 
 var PROCESS;
 var RUNNING = false
@@ -81,6 +82,8 @@ console.log(colors.cyan(
 
 
 
+var METAPLEX_PATH = pathutils.resolve(__dirname,"metaplex.js")
+
 
 function reexecute(changedFilePaths) {
 	printProcessRestartInfo()
@@ -92,7 +95,7 @@ function reexecute(changedFilePaths) {
 		PROCESS.kill();
 	}
 	dependencyFiles = [] //Clear the dependency list.
-	PROCESS = child_process.fork(process.argv[2],process.argv.slice(3),{stdio:"inherit"})
+	PROCESS = child_process.fork(process.argv[2],process.argv.slice(3),{stdio:"inherit",env:{METAPLEX:METAPLEX_PATH}})
 	running = true
 	PROCESS.on("exit",function(code,signal) {
 		if (code == 0) {
