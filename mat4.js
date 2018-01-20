@@ -3,18 +3,14 @@ var vec3 = require("./vec3.js")
 
 class mat4 {
 	constructor(arr) {
-		if (!arr) {
-			this.data = glmat4.create();
+		if (arr instanceof mat4) {
+			this.data = arr.data.slice(0)
 		} else {
-			this.data = arr
-		}
-	}
-	
-	static getMatrix(a) {
-		if (a instanceof mat4) {
-			return a
-		} else {
-			return new mat4(a)
+			if (!arr) {
+				this.data = glmat4.create();
+			} else {
+				this.data = arr
+			}
 		}
 	}
 	
@@ -24,7 +20,7 @@ class mat4 {
 	
 	multiply(mat) {
 		var out = []
-		glmat4.multiply(out,this.data,mat4.getMatrix(mat).data)
+		glmat4.multiply(out,this.data,new mat4(mat).data)
 		return new mat4(out)
 	}
 	
@@ -86,8 +82,8 @@ class mat4 {
 	
 	pointTowards(eye,point) {
 		var out = []
-		eye = vec3.getVector(eye).arr()
-		point = vec3.getVector(point).arr()
+		eye = new vec3(eye).arr()
+		point = new vec3(point).arr()
 		var up = [0,0,1]
 		glmat4.lookAt(out,eye,point,up)
 		var inverted = new mat4(out).invert()
@@ -100,15 +96,15 @@ class mat4 {
 		return new mat4(out)
 	}
 	
-	translate(a,b,c) {
-		var arr = vec3.getVector(a,b,c).arr();
+	translate(vec) {
+		var arr = vec.arr();
 		var out = []
 		glmat4.translate(out,this.data,arr)
 		return new mat4(out)
 	}
 	
 	scale(a,b,c) {
-		var arr = vec3.getVector(a,b,c).arr();
+		var arr = new vec3(a,b,c).arr();
 		var out = []
 		glmat4.scale(out,this.data,arr)
 		return new mat4(out)

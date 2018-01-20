@@ -12,6 +12,7 @@ var Metaplex = {
 			this.isChild = false //True only if this object is a non-main child of a multiple-children operation, such as union or intersection, but not translation, scale, etc. 
 			this.points = {}
 			this.addPoint("origin",[0,0,0])
+			this.origin = this.points.origin
 		}
 		
 		applyOperation(operation) {
@@ -83,8 +84,8 @@ var Metaplex = {
 			return bounds
 		}
 		
-		transformPoint(point,operationsOffset,parentOperationsOffset) { //takes a point in the format [x,y,z] and transforms it according to this objects transformations (rotation, scale, etc)
-			point = point.slice(0); //Make a copy. The operation.transformPoint() methods will also do this, but we do it here also just in case the loop doesn't actually get run because of originTransformationOffset
+		transformPoint(point,operationsOffset,parentOperationsOffset) { //takes a vec3 and transforms it according to this objects transformations (rotation, scale, etc)
+			point = point.arr()
 			for (var i = operationsOffset; i<this.operations.length; i++) {
 				point = this.operations[i].transformPoint(point)
 				if (typeof point == "undefined") {
@@ -99,18 +100,14 @@ var Metaplex = {
 					return;
 				}
 			}
-			return point
-		}		
-		
-		get origin() {
-			return this.points.origin
+			return new Metaplex.vec3(point)
 		}
 		
 		addPoint(name,val) {
 			var parentObject = this
 			Object.defineProperty(this.points,name,{
 				set:function(v) {
-					this.loc = Metaplex.vec3.getVector(v).arr()
+					this.loc = new Metaplex.vec3(v)
 					this.operationOffset = parentObject.operations.length
 					this.parentOperationOffset = parentObject.parentOperations.length
 				}
@@ -119,12 +116,12 @@ var Metaplex = {
 				}
 			})
 			if (val) {
-				this.points[name] = val
+				this.points[name] = new Metaplex.vec3(val)
 			}
 		}
 
 		setOrigin(a,b,c) {
-			var point = Metaplex.vec3.getVector(a,b,c).arr();
+			var point = new Metaplex.vec3(a,b,c).arr();
 			this.points.origin = point
 		}
 		
@@ -152,6 +149,10 @@ var Metaplex = {
 			return this.boundingBox[0][2]			
 		}
 		
+		get min() {
+			return new Metaplex.vec3(this.boundingBox[0])
+		}
+		
 		get maxX() {
 			return this.boundingBox[1][0]			
 		}
@@ -162,6 +163,10 @@ var Metaplex = {
 		
 		get maxZ() {
 			return this.boundingBox[1][2]			
+		}
+		
+		get max() {
+			return new Metaplex.vec3(this.boundingBox[1])
 		}
 		
 		get centerX() {
@@ -176,10 +181,14 @@ var Metaplex = {
 			return (this.minZ+this.maxZ)/2
 		}
 		
+		get center() {
+			return this.min.add(this.max).scale(0.5)
+		}
+		
 		//Align Min
 		alignMinX(val) {
 			if (val instanceof Metaplex.solid) val = val.minX
-			if (typeof val != "number") val = Metaplex.vec3.getVector(val).x
+			if (typeof val != "number") val = new Metaplex.vec3(val).x
 			
 			this.translate(val-this.minX,0,0)
 			return this
@@ -187,7 +196,7 @@ var Metaplex = {
 		
 		alignMinY(val) {
 			if (val instanceof Metaplex.solid) val = val.minY
-			if (typeof val != "number") val = Metaplex.vec3.getVector(val).y
+			if (typeof val != "number") val = new Metaplex.vec3(val).y
 			
 			this.translate(0,val-this.minY,0)
 			return this
@@ -195,7 +204,7 @@ var Metaplex = {
 		
 		alignMinZ(val) {
 			if (val instanceof Metaplex.solid) val = val.minZ
-			if (typeof val != "number") val = Metaplex.vec3.getVector(val).z
+			if (typeof val != "number") val = new Metaplex.vec3(val).z
 			
 			this.translate(0,0,val-this.minZ)
 			return this
@@ -204,7 +213,7 @@ var Metaplex = {
 		//Align Center
 		alignCenterX(val) {
 			if (val instanceof Metaplex.solid) val = val.centerX
-			if (typeof val != "number") val = Metaplex.vec3.getVector(val).x
+			if (typeof val != "number") val = new Metaplex.vec3(val).x
 			
 			this.translate(val-this.centerX,0,0)
 			return this
@@ -212,7 +221,7 @@ var Metaplex = {
 		
 		alignCenterY(val) {
 			if (val instanceof Metaplex.solid) val = val.centerY
-			if (typeof val != "number") val = Metaplex.vec3.getVector(val).y
+			if (typeof val != "number") val = new Metaplex.vec3(val).y
 			
 			this.translate(0,val-this.centerY,0)
 			return this
@@ -220,7 +229,7 @@ var Metaplex = {
 		
 		alignCenterZ(val) {
 			if (val instanceof Metaplex.solid) val = val.centerZ
-			if (typeof val != "number") val = Metaplex.vec3.getVector(val).z
+			if (typeof val != "number") val = new Metaplex.vec3(val).z
 			
 			this.translate(0,0,val-this.centerZ)
 			return this
@@ -229,7 +238,7 @@ var Metaplex = {
 		//Align Max
 		alignMaxX(val) {
 			if (val instanceof Metaplex.solid) val = val.maxX
-			if (typeof val != "number") val = Metaplex.vec3.getVector(val).x
+			if (typeof val != "number") val = new Metaplex.vec3(val).x
 			
 			this.translate(val-this.maxX,0,0)
 			return this
@@ -237,7 +246,7 @@ var Metaplex = {
 		
 		alignMaxY(val) {
 			if (val instanceof Metaplex.solid) val = val.maxY
-			if (typeof val != "number") val = Metaplex.vec3.getVector(val).y
+			if (typeof val != "number") val = new Metaplex.vec3(val).y
 			
 			this.translate(0,val-this.maxY,0)
 			return this
@@ -245,7 +254,7 @@ var Metaplex = {
 		
 		alignMaxZ(val) {
 			if (val instanceof Metaplex.solid) val = val.maxZ
-			if (typeof val != "number") val = Metaplex.vec3.getVector(val).z
+			if (typeof val != "number") val = new Metaplex.vec3(val).z
 			
 			this.translate(0,0,val-this.maxZ)
 			return this
@@ -263,7 +272,12 @@ var Metaplex = {
 			this.alignCenterZ(ob)
 			return this
 		}
-				
+		
+		alignPoints(p1,p2) {
+			var delta = p2.subtract(p1)
+			this.translate(delta)
+		}
+		
 		copyTopOperation(ob) {
 			this.applyOperation(ob.lastOperation)
 			return this
@@ -273,12 +287,10 @@ var Metaplex = {
 			return this.translate(dx,dy,dz)
 		}
 		
-		translate(dx,dy,dz) {
-			if (!dz) {
-				dz = 0;
-			}
-			
-			this.applyOperation(new Metaplex.operations.translate(dx,dy,dz))
+		translate(a,b,c) {
+			var vec = new Metaplex.vec3(a,b,c)
+			vec.nullMask = 7
+			this.applyOperation(new Metaplex.operations.translate(vec))
 			return this
 		}
 		
@@ -332,7 +344,16 @@ var Metaplex = {
 		}
 		
 		copy() {
-			return new Metaplex.copy(this.json(),this.dimension,this.boundingBox)
+			var keys = Object.keys(this.points)
+			console.log(keys)
+			var pointsCopy = {}
+			for (var key of keys) {
+				var point = this.points[key]
+				console.log(key+" : "+point)
+				pointsCopy[key] = point.clone();
+			}
+			
+			return new Metaplex.copy(this.json(),this.dimension,this.boundingBox,pointsCopy)
 		}
 		
 		offset(amount,mode) {
@@ -399,18 +420,24 @@ var Metaplex = {
 			return this
 		}
 		
-		add(ob) {
-			this.applyOperation(new Metaplex.operations.union(ob))
+		add() {
+			for (var i = 0; i<arguments.length; i++) {
+				this.applyOperation(new Metaplex.operations.union(arguments[i]))
+			}
 			return this
 		}
 		
 		sub(ob) {
-			this.applyOperation(new Metaplex.operations.difference(ob))
+			for (var i = 0; i<arguments.length; i++) {
+				this.applyOperation(new Metaplex.operations.difference(arguments[i]))
+			}
 			return this
 		}
 		
 		and(ob) {
-			this.applyOperation(new Metaplex.operations.intersection(ob))
+			for (var i = 0; i<arguments.length; i++) {
+				this.applyOperation(new Metaplex.operations.intersection(arguments[i]))
+			}
 			return this
 		}
 		
@@ -506,11 +533,14 @@ Metaplex.group = class extends Metaplex.solid {
 }
 
 Metaplex.copy = class extends Metaplex.solid {
-	constructor(json,dimension,bounds) {
+	constructor(json,dimension,bounds,points) {
 		super()
 		this.rootdimension = dimension
 		this.rootboundingbox = bounds
 		this.parent = json
+		for (var key in points) { //Do this because points doesn't have the proper get/set stuff
+			this.addPoint(key,points[key])
+		}
 	}
 	
 	rootjson() {

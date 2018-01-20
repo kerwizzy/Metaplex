@@ -3,17 +3,15 @@ var mat4 = require("./mat4.js")
 
 module.exports = {
 	translate:class extends Metaplex.operation {
-		constructor(x,y,z) {
+		constructor(vec) {
 			super()
-			this.x = x
-			this.y = y
-			this.z = z
+			this.delta = vec
 			
 			Metaplex.utils.checkValues(this)
 		}
 		
 		get matrix() {
-			return new mat4().translate(this.x,this.y,this.z)
+			return new mat4().translate(this.delta)
 		}
 		
 		transformDimension(d) {
@@ -23,9 +21,9 @@ module.exports = {
 		json(child) {
 			return {
 				type:"translate"
-				,x:this.x
-				,y:this.y
-				,z:this.z
+				,x:this.delta.x
+				,y:this.delta.y
+				,z:this.delta.z
 				,child:child				
 			}
 		}		
@@ -116,6 +114,10 @@ module.exports = {
 			this.z = z
 			
 			Metaplex.utils.checkValues(this)
+		}
+
+		transformDimension(d) {
+			return d
 		}		
 		
 		get matrix() { //TODO: this isn't correct, but it will do for single-axis mirrors.

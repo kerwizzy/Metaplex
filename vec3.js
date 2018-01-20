@@ -1,31 +1,24 @@
 class vec3 {
-	constructor (x,y,z) {
-		if (!x) {x = 0}
-		if (!y) {y = 0}
-		if (!z) {z = 0}
-		
-		this.x = x
-		this.y = y
-		this.z = z
-		
-		this.updateMagnitude();
-	}
-	
-	static getVector(a,b,c) {
+	constructor (a,b,c) {
 		/*		
-		getVector(vec3) -> vec3
-		getVector([x,y,z]) -> vec3
-		getVector(x,y,z) -> vec3
+		new vec3(vec3) -> vec3
+		new vec3([x,y,z]) -> vec3
+		new vec3(x,y,z) -> vec3
 		
 		*/		
 		var x
 		var y
 		var z
+		/*
+		if a value is undefined, it will be converted to zero
+		if a value is null, it will be kept as null and all operations using that value will return null
+		
+		*/
 		
 		if (a instanceof vec3) {
 			x = a.x
 			y = a.y
-			z = a.z;
+			z = a.z
 		} else if (typeof b != "undefined") {
 			x = a
 			y = b
@@ -34,20 +27,69 @@ class vec3 {
 			x = a[0]
 			y = a[1]
 			z = a[2]
-		}
-		return new vec3(x,y,z)
+		}	
 		
+		if (typeof x == "undefined") {x = 0}
+		if (typeof y == "undefined") {y = 0}
+		if (typeof z == "undefined") {z = 0}
+		
+		this.x = x
+		this.y = y
+		this.z = z
+		
+		this.updateMagnitude();
 	}
 	
-	duplicate() { //Returns a new vec3 with exactly the same parameters as this one
+	get nullMask() { //returns bit mask in zyx order (x LSB) with 0 for null, 1 otherwise
+		var x = this.x !== null
+		var y = this.y !== null
+		var z = this.z !== null
+		var out = x
+		out |= y << 1
+		out |= z << 2
+		return out
+	}
+	
+	set nullMask(mask) {
+		var x = this.x
+		var y = this.y
+		var z = this.z
+		if (!x) x = 0;
+		if (!y) y = 0;
+		if (!z) z = 0;
+		x = (mask&1 ? x : null)
+		y = (mask&2 ? y : null)
+		z = (mask&4 ? z : null)
+		this.x = x
+		this.y = y
+		this.z = z
+	}
+	
+	setNullMask(mask) {
+		var x = this.x
+		var y = this.y
+		var z = this.z
+		if (!x) x = 0;
+		if (!y) y = 0;
+		if (!z) z = 0;
+		x = (mask&1 ? x : null)
+		y = (mask&2 ? y : null)
+		z = (mask&4 ? z : null)
+		return new vec3(x,y,z)
+	}
+	
+	fill() {
+		return this.setNullMask(7)
+	}
+	
+	clone() { //Returns a new vec3 with exactly the same parameters as this one
 		return new vec3(this.x,this.y,this.z)
 	}
 	
 	updateMagnitude() {
 		var x = this.x
 		var y = this.y
-		var z = this.z
-		
+		var z = this.z //These may be null, but because of how null works, running the operation below should produce the proper result. (null*null = 0)
 		this.magnitude = Math.sqrt(x*x+y*y+z*z)
 	}
 	
@@ -99,6 +141,8 @@ class vec3 {
 	}
 	
 	scale(factor) { //Multiply all the components of a vector by a constant
+		var m = this.nullMask
+	
 		var x = this.x
 		var y = this.y
 		var z = this.z
@@ -107,10 +151,13 @@ class vec3 {
 		y*=factor
 		z*=factor
 		
-		return new vec3(x,y,z)
+		return new vec3(x,y,z).setNullMask(m)
 	}
 	
 	add(vector) { //Add each component of another vector to that component of this vector (add x1 + x2, y1 + y2, etc)
+		var m1 = this.nullMask
+		var m2 = vector.nullMask
+		
 		var x = this.x
 		var y = this.y
 		var z = this.z
@@ -119,10 +166,13 @@ class vec3 {
 		y += vector.y
 		z += vector.z
 		
-		return new vec3(x,y,z)
+		return new vec3(x,y,z).setNullMask(m1&m2)
 	}
 	
 	subtract(vector) {
+		var m1 = this.nullMask
+		var m2 = vector.nullMask
+		
 		var x = this.x
 		var y = this.y
 		var z = this.z
@@ -131,10 +181,13 @@ class vec3 {
 		y -= vector.y
 		z -= vector.z
 		
-		return new vec3(x,y,z)		
+		return new vec3(x,y,z).setNullMask(m1&m2)
 	}
 	
 	multiply(vector) {
+		var m1 = this.nullMask
+		var m2 = vector.nullMask
+		
 		var x = this.x
 		var y = this.y
 		var z = this.z
@@ -143,10 +196,13 @@ class vec3 {
 		y *= vector.y
 		z *= vector.z
 		
-		return new vec3(x,y,z)		
+		return new vec3(x,y,z).setNullMask(m1&m2)
 	}
 	
 	divide(vector) {
+		var m1 = this.nullMask
+		var m2 = vector.nullMask
+		
 		var x = this.x
 		var y = this.y
 		var z = this.z
@@ -155,11 +211,13 @@ class vec3 {
 		y /= vector.y
 		z /= vector.z
 		
-		return new vec3(x,y,z)		
+		return new vec3(x,y,z).setNullMask(m1&m2)
 	}
 	
 	
 	constantDivideBy(constant) { //Divide a constant by this vector
+		var m = this.nullMask
+	
 		var x = this.x
 		var y = this.y
 		var z = this.z
@@ -168,7 +226,7 @@ class vec3 {
 		y = constant/y
 		z = constant/z
 		
-		return new vec3(x,y,z)		
+		return new vec3(x,y,z).setNullMask(m)		
 	}
 	
 	dotProduct(vector) { //Note that this returns a NUMBER not a vector
@@ -199,6 +257,21 @@ class vec3 {
 		return [this.x,this.y,this.z]
 	}	
 	
+	get xy() {
+		return new vec3(this.x,this.y,null)
+	}
+	
+	get yz() {
+		return new vec3(null,this.y,this.z)
+	}
+	
+	get xz() {
+		return new vec3(this.x,null,this.z)
+	}
+	
+	get xyz() {
+		return this.clone()
+	}
 }
 
 module.exports = vec3
