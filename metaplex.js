@@ -11,8 +11,8 @@ var Metaplex = {
 			this.parentOperations = [] //Operations applied to the parent of this object. Used to properly preform transforms of bounding boxes of objects inside other objects
 			this.isChild = false //True only if this object is a non-main child of a multiple-children operation, such as union or intersection, but not translation, scale, etc. 
 			this.points = {}
+			this.pointData = {}
 			this.addPoint("origin",[0,0,0])
-			this.origin = this.points.origin
 		}
 		
 		applyOperation(operation) {
@@ -105,24 +105,40 @@ var Metaplex = {
 		
 		addPoint(name,val) {
 			var parentObject = this
+			this.pointData[name] = {}
 			Object.defineProperty(this.points,name,{
 				set:function(v) {
-					this.loc = new Metaplex.vec3(v)
-					this.operationOffset = parentObject.operations.length
-					this.parentOperationOffset = parentObject.parentOperations.length
+					parentObject.pointData[name].loc = new Metaplex.vec3(v)
+					parentObject.pointData[name].operationOffset = parentObject.operations.length
+					parentObject.pointData[name].parentOperationOffset = parentObject.parentOperations.length
 				}
 				,get:function() {
-					return parentObject.transformPoint(this.loc,this.operationOffset,this.parentOperationOffset)
+					return parentObject.transformPoint(parentObject.pointData[name].loc,parentObject.pointData[name].operationOffset,parentObject.pointData[name].parentOperationOffset)
 				}
+				,configurable:true
+				,enumerable:true
 			})
 			if (val) {
 				this.points[name] = new Metaplex.vec3(val)
 			}
 		}
+		
+		removePoint(name) {
+			delete this.points[name]
+			delete this.pointData[name]
+		}
 
 		setOrigin(a,b,c) {
 			var point = new Metaplex.vec3(a,b,c).arr();
 			this.points.origin = point
+		}
+		
+		get origin() {
+			return this.points.origin
+		}
+		
+		set origin(v) {
+			this.points.origin = v
 		}
 		
 		get originX() {
@@ -344,16 +360,13 @@ var Metaplex = {
 		}
 		
 		copy() {
+			var pointLocations = {}
 			var keys = Object.keys(this.points)
-			console.log(keys)
-			var pointsCopy = {}
 			for (var key of keys) {
-				var point = this.points[key]
-				console.log(key+" : "+point)
-				pointsCopy[key] = point.clone();
+				pointLocations[key] = this.points[key]
 			}
 			
-			return new Metaplex.copy(this.json(),this.dimension,this.boundingBox,pointsCopy)
+			return new Metaplex.copy(this.json(),this.dimension,this.boundingBox,pointLocations)
 		}
 		
 		offset(amount,mode) {
@@ -515,6 +528,9 @@ var Metaplex = {
 			
 			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
 		}
+		,copyObject(ob) {
+			return JSON.parse(JSON.stringify(ob))
+		}
 	}
 }
 
@@ -533,13 +549,15 @@ Metaplex.group = class extends Metaplex.solid {
 }
 
 Metaplex.copy = class extends Metaplex.solid {
-	constructor(json,dimension,bounds,points) {
+	constructor(json,dimension,bounds,pointLocations) { //note that point locations is NOT equivalent to Solid.pointData. It is a list of name:loc pairs of the transformed locations of points at the time of the copy.
 		super()
+		this.removePoint("origin") //origin will be set below where the points are copied. This ensures that a transformed origin is copied correctly.
+		
 		this.rootdimension = dimension
 		this.rootboundingbox = bounds
 		this.parent = json
-		for (var key in points) { //Do this because points doesn't have the proper get/set stuff
-			this.addPoint(key,points[key])
+		for (var key in pointLocations) {
+			this.addPoint(key,pointLocations[key]) //Don't have to do anything with the operation offsets because this is a new object and doesn't have any operations.
 		}
 	}
 	
@@ -604,6 +622,7 @@ Metaplex.operations = require("./operations.js")
 Metaplex.primitives = require("./primitives.js")
 
 Metaplex.vec3 = require("./vec3.js")
+Metaplex.origin = new Metaplex.vec3(0,0,0)
 
 Metaplex.mat4 = require("./mat4.js")
 
