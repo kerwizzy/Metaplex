@@ -535,6 +535,14 @@ var Metaplex = {
 }
 
 
+/*
+At the moment, Metaplex.group and Metaplex.empty are
+equivalent, but more features a planned to be added
+to Metaplex.group in the future. Originally
+Metaplex.group was a polyfill for older versions of
+Metaplex and also some constructions involving
+loops, etc that are awkward to define other ways.
+*/
 Metaplex.group = class extends Metaplex.solid {
 	constructor() {
 		super()
@@ -546,6 +554,19 @@ Metaplex.group = class extends Metaplex.solid {
 			type:"empty"
 		}
 	}
+}
+
+Metaplex.empty = class extends Metaplex.solid {
+	constructor() {
+		super()
+		this.rootboundingbox = [[0,0,0],[0,0,0]]
+	}
+	
+	rootjson() {
+		return {
+			type:"empty"
+		}
+	}	
 }
 
 Metaplex.copy = class extends Metaplex.solid {

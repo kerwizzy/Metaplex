@@ -116,17 +116,17 @@ var operators = {
 	}
 	,"union":{
 		parse(o,l,d) {
-			return "union() {\n"+parse(o,l,"child1",d)+"\n"+parse(o,l,"child2",d)+"\n}"
+			return generateMultichildOperation("union",o,l,d)
 		}
 	}
 	,"difference":{
 		parse(o,l,d) {
-			return "difference() {\n"+parse(o,l,"child1",d)+"\n"+parse(o,l,"child2",d)+"\n}"
+			return generateMultichildOperation("difference",o,l,d)
 		}
 	}
 	,"intersection":{
 		parse(o,l,d) {
-			return "intersection() {\n"+parse(o,l,"child1",d)+"\n"+parse(o,l,"child2",d)+"\n}"
+			return generateMultichildOperation("intersection",o,l,d)
 		}
 	}
 	,"offset":{
@@ -173,9 +173,54 @@ var operators = {
 	}
 	,"empty":{
 		parse(o,l,d) {
+			d.isEmpty = true //This passes the fact that this chain is empty up to higher calls in the tree, allowing this chain to be optimized away
 			return ""
 		}
 	}
+}
+
+function generateMultichildOperation(name,o,l,d) {
+	var dcopy1 = copy(d)
+	var dcopy2 = copy(d)
+	
+	var child1 = parse(o,l,"child1",dcopy1)
+	var child2 = parse(o,l,"child2",dcopy2)
+	
+	if (!debug) {
+		if (!dcopy1.isEmpty && !dcopy2.isEmpty) {
+			return name+"() {\n"+child1+"\n"+child2+"\n}"
+		} else if (!dcopy1.isEmpty) {
+			return child1
+		} else if (!dcopy2.isEmpty) {
+			return child2
+		} else { 
+			d.isEmpty = true
+			return ""
+		}
+	} else {
+		if (dcopy1.isEmpty && dcopy2.isEmpty) {
+			d.isEmpty = true
+			return ""
+		} else {		
+			if (dcopy1.isEmpty) {
+				child1 = commentOut("//empty: \n"+child1)
+			}
+			if (dcopy2.isEmpty) {
+				child2 = commentOut("//empty: \n"+child2)
+			}
+			return name+"() {\n"+child1+"\n"+child2+"\n}"
+		}
+	}
+}
+
+function commentOut(txt) {
+	var lines = txt.split("\n")
+	for (var i = 0; i<lines.length; i++) {
+		if (lines[i].substr(0,2) != "//") {
+			lines[i] = "//"+lines[i]
+		}
+	}
+	return lines.join("\n")
 }
 
 function copy(obj) {
