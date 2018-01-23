@@ -67,11 +67,16 @@ class mat4 {
 		
 		var m = this.data
 		
+		/*
 		var outX = m[0]*x+m[4]*y+m[8]*z+m[12]*w
 		var outY = m[1]*x+m[5]*y+m[9]*z+m[13]*w
 		var outZ = m[2]*x+m[6]*y+m[10]*z+m[14]*w
-		//var outW = m[3]*x+m[7]*y+m[11]*z+m[15]*w
-	
+		var outW = m[3]*x+m[7]*y+m[11]*z+m[15]*w
+		*/
+		var outX = matrixRowMultiply(m[0],x,m[4],y,m[8],z,m[12],w)
+		var outY = matrixRowMultiply(m[1],x,m[5],y,m[9],z,m[13],w)
+		var outZ = matrixRowMultiply(m[2],x,m[6],y,m[10],z,m[14],w)
+		//var outW = matrixRowMultiply(m[3],x,m[7],y,m[11],z,m[15],w)
 		
 		if (mode == 0) {
 			return new vec3(outX,outY,outZ)
@@ -96,8 +101,8 @@ class mat4 {
 		return new mat4(out)
 	}
 	
-	translate(vec) {
-		var arr = vec.arr();
+	translate(a,b,c) {
+		var arr = new vec3(a,b,c).arr();
 		var out = []
 		glmat4.translate(out,this.data,arr)
 		return new mat4(out)
@@ -150,6 +155,110 @@ class mat4 {
 		lines.push(" ["+this.data.slice(12,16).join(",")+"]")
 		return "["+lines.join("\n")+"]"
 	}
+}
+
+class NullNumber { //A special number class for properly taking care of vectors with null components during point transformation.
+/*
+BEHAVIOR
+
+add
+num,num -> num+num
+null,0 -> null
+null,non-zero -> null
+
+mul
+num,num -> num*num
+null,0 -> 0
+null,non-zero -> null
+
+REASONS FOR THIS BEHAVIOR
+
+Vector: (1 2 null)
+w=1
+
+Matrix:
+1 0 0 0
+0 1 1 5
+0 0 1 0
+0 0 0 1
+(y translation +5)
+
+On 3rd (z) row:
+
+0*1+0*2+1*null+0*1
+
+0+1*null
+
+result should be null (null z output of translation), so 1*null must equal null and 0+null must equal null:
+	null*nonzero = null
+	null+zero = null
+
+On 2nd (y) row:
+
+0*1+1*2+1*null+5*1
+
+2+5+1*null
+
+7+null (null*nonzero = null)
+
+result should be null so
+	null+nonzero = null
+
+	
+On 1st (x) row:
+
+1*1+0*2+0*null+0*1
+
+1+0*null
+
+result should be 1, so:
+	0*null = 0
+
+
+*/
+
+	constructor(v) {
+		this.value = v
+		this.isNull = v === null
+	}
+	
+	add(num) { //must be a NullNumber
+		if (num.isNull || this.isNull) {
+			return new NullNumber(null)
+		} else {
+			return new NullNumber(this.value+num.value)
+		}
+	}
+	mul(num) { //must be a NullNumber
+		if (isZero(num.value) || isZero(this.value)) {
+			return new NullNumber(0)
+		} else if (num.isNull || this.isNull) {
+			return new NullNumber(null)
+		} else {
+			return new NullNumber(this.value*num.value)
+		}
+	}
+
+}
+
+const epsilon = 1e-15
+function isZero(v) {
+	return v !== null && Math.abs(v) < epsilon 
+}
+
+function matrixRowMultiply(mx,x,my,y,mz,z,mw,w) {
+	mx = new NullNumber(mx)
+	my = new NullNumber(my)
+	mz = new NullNumber(mz)
+	mw = new NullNumber(mw)
+	x = new NullNumber(x)
+	y = new NullNumber(y)
+	z = new NullNumber(z)
+	w = new NullNumber(w)
+	
+	//m[0]*x+m[4]*y+m[8]*z+m[12]*w
+	
+	return (mx.mul(x).add(my.mul(y)).add(mz.mul(z)).add(mw.mul(w))).value
 }
 
 module.exports = mat4

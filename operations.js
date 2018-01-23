@@ -5,7 +5,7 @@ module.exports = {
 	translate:class extends Metaplex.operation {
 		constructor(vec) {
 			super()
-			this.delta = vec
+			this.delta = vec.fill()
 			
 			Metaplex.utils.checkValues(this)
 		}

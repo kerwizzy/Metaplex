@@ -85,7 +85,7 @@ var Metaplex = {
 		}
 		
 		transformPoint(point,operationsOffset,parentOperationsOffset) { //takes a vec3 and transforms it according to this objects transformations (rotation, scale, etc)
-			point = point.arr()
+			point = new Metaplex.vec3(point).arr()
 			for (var i = operationsOffset; i<this.operations.length; i++) {
 				point = this.operations[i].transformPoint(point)
 				if (typeof point == "undefined") {
@@ -100,6 +100,7 @@ var Metaplex = {
 					return;
 				}
 			}
+			
 			return new Metaplex.vec3(point)
 		}
 		
@@ -305,7 +306,6 @@ var Metaplex = {
 		
 		translate(a,b,c) {
 			var vec = new Metaplex.vec3(a,b,c)
-			vec.nullMask = 7
 			this.applyOperation(new Metaplex.operations.translate(vec))
 			return this
 		}
