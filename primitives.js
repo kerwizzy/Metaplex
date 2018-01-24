@@ -46,6 +46,21 @@ var primitives = {
 			this.rootboundingbox = [[-this.radius,-this.radius,0],[this.radius,this.radius,this.height]]
 		}
 		
+		chordHeight(length) { //calculate the sagitta of a chord of a given length
+			/*
+			(l/2)^2+(r-d)^2 = r^2
+			(r-d)^2 = r^2-(l/2)^2
+		
+			r-d = sqrt(r^2-(l/2)^2)
+			d = r-sqrt(r^2-(l/2)^2)			
+			*/
+			if (length > this.radius*2) {
+				return this.radius
+			}
+			
+			return this.radius-Math.sqrt(this.radius**2-(length/2)**2)
+		}
+		
 		rootjson() {
 			return {
 				type:"cylinder"
@@ -180,6 +195,21 @@ var primitives = {
 			Metaplex.utils.checkValues(this)
 			
 			this.rootboundingbox = [[-this.radius,-this.radius,0],[this.radius,this.radius,0]]
+		}
+		
+		chordHeight(length) { //calculate the sagitta of a chord of a given length
+			/*
+			(l/2)^2+(r-d)^2 = r^2
+			(r-d)^2 = r^2-(l/2)^2
+		
+			r-d = sqrt(r^2-(l/2)^2)
+			d = r-sqrt(r^2-(l/2)^2)			
+			*/
+			if (length > this.radius*2) {
+				return this.radius
+			}
+			
+			return this.radius-Math.sqrt(this.radius**2-(length/2)**2)
 		}
 		
 		rootjson() {
