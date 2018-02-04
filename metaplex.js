@@ -5,532 +5,586 @@ const FilteredError = require("./filterederror.js")
 
 
 var Metaplex = {
-	solid:class {
-		constructor() {
-			this.operations = []
-			this.parentOperations = [] //Operations applied to the parent of this object. Used to properly preform transforms of bounding boxes of objects inside other objects
-			this.isChild = false //True only if this object is a non-main child of a multiple-children operation, such as union or intersection, but not translation, scale, etc. 
-			this.points = {}
-			this.pointData = {}
-			this.addPoint("origin",[0,0,0])
-		}
-		
-		applyOperation(operation) {
-			if (operation.isLocationTransform) { 
-				for (var i = 0; i<this.operations.length; i++) {
-					var op = this.operations[i]
-					if (op.isMultichild) {
-						op.applyToChildren(operation)
-					}
-				}
-			}
-			this.operations.push(operation)
-		}
-		
-		applyParentOperation(operation) {
+	
+	
+}
+/**
+# Metaplex.solid
+
+Generic class to Represents all objects which can be transformed, translated, etc.
+
+@property {Metaplex.operation[]} operations - an array of the base operations applied to this object, before it is processed as a child of another object
+@property {Metaplex.operation[]} parentOperations - TODO
+*/
+Metaplex.solid = class {
+	constructor() {
+		this.operations = []
+		this.parentOperations = [] //Operations applied to the parent of this object. Used to properly preform transforms of bounding boxes of objects inside other objects
+		this.isChild = false //True only if this object is a non-main child of a multiple-children operation, such as union or intersection, but not translation, scale, etc. 
+		this.points = {}
+		this.pointData = {}
+		this.addPoint("origin",[0,0,0])
+	}
+	/**
+	Apply an operation to this object and all child objects
+	
+	@param {Metaplex.operation} operation
+	*/
+	applyOperation(operation) {
+		if (operation.isLocationTransform) { 
 			for (var i = 0; i<this.operations.length; i++) {
 				var op = this.operations[i]
 				if (op.isMultichild) {
 					op.applyToChildren(operation)
 				}
 			}
-			this.parentOperations.push(operation)
 		}
-
-		get lastOperation() {
-			return this.operations[this.operations.length-1]
-		}
-		
-		set lastOperation(v) {
-			this.operations[this.operations.length-1] = v
-		}
-		
-		get dimension() {
-			var dim = this.rootdimension
-			for (var i = 0; i<this.operations.length; i++) {
-				dim = this.operations[i].transformDimension(dim)
+		this.operations.push(operation)
+	}
+	
+	/**
+	Inform this object of an operation applied to a one of its parent object. This operation is passed as a parent operation to all child objects.
+	
+	@param {Metaplex.operation} operation - the operation which was applied to the parent object	
+	*/
+	
+	applyParentOperation(operation) {
+		for (var i = 0; i<this.operations.length; i++) {
+			var op = this.operations[i]
+			if (op.isMultichild) {
+				op.applyToChildren(operation)
 			}
-			return dim
 		}
+		this.parentOperations.push(operation)
+	}
+
+	/**
+		Allows getting and setting the most recent operation.
+	*/
+	get lastOperation() {
+		return this.operations[this.operations.length-1]
+	}
+	
+	set lastOperation(v) {
+		this.operations[this.operations.length-1] = v
+	}
+	
+	/**
+		The final (after all transformations) dimension of this object. Either 2 or 3
 		
-		//Returns the bounding box of this object before it was a child of another object.
-		get ownBoundingBox() { //returns something in the format [[minx,miny,minz],[maxx,maxy,maxz]]
-			var bounds = this.rootboundingbox
+		@returns {number}
+	*/
+	get dimension() {
+		var dim = this.rootdimension
+		for (var i = 0; i<this.operations.length; i++) {
+			dim = this.operations[i].transformDimension(dim)
+		}
+		return dim
+	}
+	
+	/**
+	Returns the bounding box of this object before it was a child of another object.
+	
+	Output format: [[minx,miny,minz],[maxx,maxy,maxz]]
+	
+	@returns {number[][]}
+	*/
+	get ownBoundingBox() { 
+		var bounds = this.rootboundingbox
+		if (typeof bounds == "undefined") {
+			Metaplex.log.error("Primitive bounds not defined.",false)
+			return;
+		}
+		for (var i = 0; i<this.operations.length; i++) {
+			bounds = this.operations[i].transformBoundingBox(bounds)
 			if (typeof bounds == "undefined") {
-				Metaplex.log.error("Primitive bounds not defined.",false)
+				Metaplex.log.error("Bounding box transform of operation not defined.",false)
 				return;
 			}
-			for (var i = 0; i<this.operations.length; i++) {
-				bounds = this.operations[i].transformBoundingBox(bounds)
-				if (typeof bounds == "undefined") {
-					Metaplex.log.error("Bounding box transform of operation not defined.",false)
-					return;
-				}
-			}
-			
-			return bounds
 		}
 		
-		//Returns the current bounding box, including the transformations applied to the parent
-		get boundingBox() {
-			var bounds = this.ownBoundingBox
-			for (var i = 0; i<this.parentOperations.length; i++) {
-				bounds = this.parentOperations[i].transformBoundingBox(bounds)
-				if (typeof bounds == "undefined") {
-					Metaplex.log.error("Bounding box transform of operation not defined.",false)
-					return;
-				}
+		return bounds
+	}
+	
+	/**
+	Returns the current bounding box, including the transformations applied to the parent
+	
+	Output format: [[minx,miny,minz],[maxx,maxy,maxz]]
+	
+	@returns {number[][]}
+	*/	
+	get boundingBox() {
+		var bounds = this.ownBoundingBox
+		for (var i = 0; i<this.parentOperations.length; i++) {
+			bounds = this.parentOperations[i].transformBoundingBox(bounds)
+			if (typeof bounds == "undefined") {
+				Metaplex.log.error("Bounding box transform of operation not defined.",false)
+				return;
 			}
-			return bounds
 		}
-		
-		transformPoint(point,operationsOffset,parentOperationsOffset) { //takes a vec3 and transforms it according to this objects transformations (rotation, scale, etc)
-			point = new Metaplex.vec3(point).arr()
-			for (var i = operationsOffset; i<this.operations.length; i++) {
-				point = this.operations[i].transformPoint(point)
-				if (typeof point == "undefined") {
-					Metaplex.log.error("Point transform of operation not defined.",false)
-					return;
-				}
+		return bounds
+	}
+	
+	/**
+	takes a point and transforms it according to this objects transformations (rotation, scale, etc)
+	
+	@param {Metaplex.vec3|number[]} point - the input point
+	@param {number} operationsOffset
+	@param {number} parentOperationsOffset
+	@returns {Metaplex.vec3}
+	*/
+	transformPoint(point,operationsOffset,parentOperationsOffset) {
+		point = new Metaplex.vec3(point).arr()
+		for (var i = operationsOffset; i<this.operations.length; i++) {
+			point = this.operations[i].transformPoint(point)
+			if (typeof point == "undefined") {
+				Metaplex.log.error("Point transform of operation not defined.",false)
+				return;
 			}
-			for (var i = parentOperationsOffset; i<this.parentOperations.length; i++) {
-				point = this.parentOperations[i].transformPoint(point)
-				if (typeof point == "undefined") {
-					Metaplex.log.error("Point transform of operation not defined.",false)
-					return;
-				}
-			}
-			
-			return new Metaplex.vec3(point)
 		}
-		
-		addPoint(name,val) {
-			var parentObject = this
-			this.pointData[name] = {}
-			Object.defineProperty(this.points,name,{
-				set:function(v) {
-					parentObject.pointData[name].loc = new Metaplex.vec3(v)
-					parentObject.pointData[name].operationOffset = parentObject.operations.length
-					parentObject.pointData[name].parentOperationOffset = parentObject.parentOperations.length
-				}
-				,get:function() {
-					return parentObject.transformPoint(parentObject.pointData[name].loc,parentObject.pointData[name].operationOffset,parentObject.pointData[name].parentOperationOffset)
-				}
-				,configurable:true
-				,enumerable:true
-			})
-			if (val) {
-				this.points[name] = new Metaplex.vec3(val)
+		for (var i = parentOperationsOffset; i<this.parentOperations.length; i++) {
+			point = this.parentOperations[i].transformPoint(point)
+			if (typeof point == "undefined") {
+				Metaplex.log.error("Point transform of operation not defined.",false)
+				return;
 			}
 		}
 		
-		removePoint(name) {
-			delete this.points[name]
-			delete this.pointData[name]
-		}
-
-		setOrigin(a,b,c) {
-			var point = new Metaplex.vec3(a,b,c).arr();
-			this.points.origin = point
-		}
-		
-		get origin() {
-			return this.points.origin
-		}
-		
-		set origin(v) {
-			this.points.origin = v
-		}
-		
-		get originX() {
-			return this.points.origin[0]
-		}
-		
-		get originY() {
-			return this.points.origin[1]
-		}
-		
-		get originZ() {
-			return this.points.origin[2]
-		}
-		
-		get minX() {
-			return this.boundingBox[0][0]			
-		}
-		
-		get minY() {
-			return this.boundingBox[0][1]			
-		}
-		
-		get minZ() {
-			return this.boundingBox[0][2]			
-		}
-		
-		get min() {
-			return new Metaplex.vec3(this.boundingBox[0])
-		}
-		
-		get maxX() {
-			return this.boundingBox[1][0]			
-		}
-		
-		get maxY() {
-			return this.boundingBox[1][1]			
-		}
-		
-		get maxZ() {
-			return this.boundingBox[1][2]			
-		}
-		
-		get max() {
-			return new Metaplex.vec3(this.boundingBox[1])
-		}
-		
-		get centerX() {
-			return (this.minX+this.maxX)/2
-		}
-		
-		get centerY() {
-			return (this.minY+this.maxY)/2
-		}
-		
-		get centerZ() {
-			return (this.minZ+this.maxZ)/2
-		}
-		
-		get center() {
-			return this.min.add(this.max).scale(0.5)
-		}
-		
-		//Align Min
-		alignMinX(val) {
-			if (val instanceof Metaplex.solid) val = val.minX
-			if (typeof val != "number") val = new Metaplex.vec3(val).x
-			
-			this.translate(val-this.minX,0,0)
-			return this
-		}
-		
-		alignMinY(val) {
-			if (val instanceof Metaplex.solid) val = val.minY
-			if (typeof val != "number") val = new Metaplex.vec3(val).y
-			
-			this.translate(0,val-this.minY,0)
-			return this
-		}
-		
-		alignMinZ(val) {
-			if (val instanceof Metaplex.solid) val = val.minZ
-			if (typeof val != "number") val = new Metaplex.vec3(val).z
-			
-			this.translate(0,0,val-this.minZ)
-			return this
-		}
-		
-		//Align Center
-		alignCenterX(val) {
-			if (val instanceof Metaplex.solid) val = val.centerX
-			if (typeof val != "number") val = new Metaplex.vec3(val).x
-			
-			this.translate(val-this.centerX,0,0)
-			return this
-		}
-		
-		alignCenterY(val) {
-			if (val instanceof Metaplex.solid) val = val.centerY
-			if (typeof val != "number") val = new Metaplex.vec3(val).y
-			
-			this.translate(0,val-this.centerY,0)
-			return this
-		}
-		
-		alignCenterZ(val) {
-			if (val instanceof Metaplex.solid) val = val.centerZ
-			if (typeof val != "number") val = new Metaplex.vec3(val).z
-			
-			this.translate(0,0,val-this.centerZ)
-			return this
-		}
-		
-		//Align Max
-		alignMaxX(val) {
-			if (val instanceof Metaplex.solid) val = val.maxX
-			if (typeof val != "number") val = new Metaplex.vec3(val).x
-			
-			this.translate(val-this.maxX,0,0)
-			return this
-		}
-		
-		alignMaxY(val) {
-			if (val instanceof Metaplex.solid) val = val.maxY
-			if (typeof val != "number") val = new Metaplex.vec3(val).y
-			
-			this.translate(0,val-this.maxY,0)
-			return this
-		}
-		
-		alignMaxZ(val) {
-			if (val instanceof Metaplex.solid) val = val.maxZ
-			if (typeof val != "number") val = new Metaplex.vec3(val).z
-			
-			this.translate(0,0,val-this.maxZ)
-			return this
-		}
-		
-		alignCenterXY(ob) {
-			this.alignCenterX(ob)
-			this.alignCenterY(ob)
-			return this
-		}
-		
-		alignCenterXYZ(ob) {
-			this.alignCenterX(ob)
-			this.alignCenterY(ob)
-			this.alignCenterZ(ob)
-			return this
-		}
-		
-		alignPoints(p1,p2) {
-			var delta = p2.subtract(p1)
-			this.translate(delta)
-		}
-		
-		copyTopOperation(ob) {
-			this.applyOperation(ob.lastOperation)
-			return this
-		}
-		
-		move(dx,dy,dz) {
-			return this.translate(dx,dy,dz)
-		}
-		
-		translate(a,b,c) {
-			var vec = new Metaplex.vec3(a,b,c)
-			this.applyOperation(new Metaplex.operations.translate(vec))
-			return this
-		}
-		
-		rotx(rx) {
-			return this.rotate(rx,0,0)
-		}
-		
-		roty(ry) {
-			return this.rotate(0,ry,0)
-		}
-		
-		rotz(rz) {
-			return this.rotate(0,0,rz)
-		}		
-		
-		rotate(rx,ry,rz) {
-			this.applyOperation(new Metaplex.operations.rotate(rx,ry,rz))			
-			return this
-		}
-		
-		scale(sx,sy,sz) {
-			if (typeof sy == "undefined") {
-				sy = sx
-				sz = sx
+		return new Metaplex.vec3(point)
+	}
+	
+	addPoint(name,val) {
+		var parentObject = this
+		this.pointData[name] = {}
+		Object.defineProperty(this.points,name,{
+			set:function(v) {
+				parentObject.pointData[name].loc = new Metaplex.vec3(v)
+				parentObject.pointData[name].operationOffset = parentObject.operations.length
+				parentObject.pointData[name].parentOperationOffset = parentObject.parentOperations.length
 			}
-			
-			this.applyOperation(new Metaplex.operations.scale(sx,sy,sz))
-			return this
-		}
-		
-		mirror(x,y,z) {
-			this.applyOperation(new Metaplex.operations.mirror(x,y,z))
-			return this
-		}
-		
-		mirrorX() {
-			return this.mirror(1,0,0)
-		}
-		
-		mirrorY() {
-			return this.mirror(0,1,0)
-		}
-		
-		mirrorZ() {
-			return this.mirror(0,0,1)
-		}
-		
-		multmatrix(matrix) {
-			this.applyOperation(new Metaplex.operations.multmatrix(matrix))
-			return this
-		}
-		
-		copy() {
-			var pointLocations = {}
-			var keys = Object.keys(this.points)
-			for (var key of keys) {
-				pointLocations[key] = this.points[key]
+			,get:function() {
+				return parentObject.transformPoint(parentObject.pointData[name].loc,parentObject.pointData[name].operationOffset,parentObject.pointData[name].parentOperationOffset)
 			}
-			
-			return new Metaplex.copy(this.json(),this.dimension,this.boundingBox,pointLocations)
-		}
-		
-		offset(amount,mode) {
-			this.applyOperation(new Metaplex.operations.offset(amount,mode))
-			return this
-		}
-		
-		minkowskiAdd(ob) {
-			this.applyOperation(new Metaplex.operations.minkowskiAdd(ob))
-			return this
-		}
-		
-		minkowskiSub(ob) {
-			this.applyOperation(new Metaplex.operations.minkowskiSub(ob,this.boundingBox))
-			return this
-		}
-		
-		
-		linear_extrude(height,twist,scale) {
-			if (this.dimension != 3) {
-				if (!scale) {
-					scale = 1
-				}
-				if (!twist) {
-					twist = 0
-				}
-				this.applyOperation(new Metaplex.operations.linear_extrude(height,twist,scale))
-				return this
-			} else {
-				Metaplex.log.error('Cannot use "linear_extrude" on a 3D object.')
-			}
-		}
-		
-		rotate_extrude(degrees) {
-			if (this.dimension != 3) {
-				this.applyOperation(new Metaplex.operations.rotate_extrude(degrees))
-				return this
-			} else {
-				Metaplex.log.error('Cannot use "rotate_extrude" on a 3D object.')
-			}
-		}
-		
-		display_debug() {
-			this.applyOperation(new Metaplex.operations.display_debug())
-			return this
-		}
-		
-		color(r,g,b,a) {
-			if (typeof r == "string") {
-				var name = r
-				var alpha = g
-				if (typeof alpha == "undefined") {
-					alpha = 1
-				}
-				this.applyOperation(new Metaplex.operations.colorname(name,alpha))
-			} else {
-				this.applyOperation(new Metaplex.operations.color(r,g,b,a))
-			}
-			return this
-		}
-		
-		setFN(fn) {
-			this.applyOperation(new Metaplex.operations.setFN(fn))
-			return this
-		}
-		
-		add() {
-			for (var i = 0; i<arguments.length; i++) {
-				this.applyOperation(new Metaplex.operations.union(arguments[i]))
-			}
-			return this
-		}
-		
-		sub(ob) {
-			for (var i = 0; i<arguments.length; i++) {
-				this.applyOperation(new Metaplex.operations.difference(arguments[i]))
-			}
-			return this
-		}
-		
-		and(ob) {
-			for (var i = 0; i<arguments.length; i++) {
-				this.applyOperation(new Metaplex.operations.intersection(arguments[i]))
-			}
-			return this
-		}
-		
-		json() {
-			var out = this.rootjson()
-			for (var i = 0; i<this.operations.length; i++) {
-				var op = this.operations[i]
-				out = op.json(out)
-			}
-			return out
-		}
-		
-		save(path,a,b) { 
-			//examples:		
-			// "blah.scad",{debug:true}
-			// "blah.js","Autodesk Shape Generator",{debug:true}
-			var options
-			var exporter
-			if (typeof a == "string") {
-				options = b
-				exporter = a
-			} else {
-				options = a
-			}
-			
-			Metaplex.save(this.json(),path,options,exporter)
-		}
-		
-		exportAs(exporter,options) {
-			return Metaplex.exportAs(this.json(),exporter,options)
+			,configurable:true
+			,enumerable:true
+		})
+		if (val) {
+			this.points[name] = new Metaplex.vec3(val)
 		}
 	}
-	,utils:{
-		removeExtension(path) {
-			path = path.split(".")
-			path.pop();
-			return path.join(".")
+	
+	removePoint(name) {
+		delete this.points[name]
+		delete this.pointData[name]
+	}
+
+	setOrigin(a,b,c) {
+		var point = new Metaplex.vec3(a,b,c).arr();
+		this.points.origin = point
+	}
+	
+	get origin() {
+		return this.points.origin
+	}
+	
+	set origin(v) {
+		this.points.origin = v
+	}
+	
+	get originX() {
+		return this.points.origin[0]
+	}
+	
+	get originY() {
+		return this.points.origin[1]
+	}
+	
+	get originZ() {
+		return this.points.origin[2]
+	}
+	
+	get minX() {
+		return this.boundingBox[0][0]			
+	}
+	
+	get minY() {
+		return this.boundingBox[0][1]			
+	}
+	
+	get minZ() {
+		return this.boundingBox[0][2]			
+	}
+	
+	get min() {
+		return new Metaplex.vec3(this.boundingBox[0])
+	}
+	
+	get maxX() {
+		return this.boundingBox[1][0]			
+	}
+	
+	get maxY() {
+		return this.boundingBox[1][1]			
+	}
+	
+	get maxZ() {
+		return this.boundingBox[1][2]			
+	}
+	
+	get max() {
+		return new Metaplex.vec3(this.boundingBox[1])
+	}
+	
+	get centerX() {
+		return (this.minX+this.maxX)/2
+	}
+	
+	get centerY() {
+		return (this.minY+this.maxY)/2
+	}
+	
+	get centerZ() {
+		return (this.minZ+this.maxZ)/2
+	}
+	
+	get center() {
+		return this.min.add(this.max).scale(0.5)
+	}
+	
+	get range() {
+		return this.max.subtract(this.min)
+	}
+	
+	//Align Min
+	alignMinX(val) {
+		if (val instanceof Metaplex.solid) val = val.minX
+		if (typeof val != "number") val = new Metaplex.vec3(val).x
+		
+		this.translate(val-this.minX,0,0)
+		return this
+	}
+	
+	alignMinY(val) {
+		if (val instanceof Metaplex.solid) val = val.minY
+		if (typeof val != "number") val = new Metaplex.vec3(val).y
+		
+		this.translate(0,val-this.minY,0)
+		return this
+	}
+	
+	alignMinZ(val) {
+		if (val instanceof Metaplex.solid) val = val.minZ
+		if (typeof val != "number") val = new Metaplex.vec3(val).z
+		
+		this.translate(0,0,val-this.minZ)
+		return this
+	}
+	
+	//Align Center
+	alignCenterX(val) {
+		if (val instanceof Metaplex.solid) val = val.centerX
+		if (typeof val != "number") val = new Metaplex.vec3(val).x
+		
+		this.translate(val-this.centerX,0,0)
+		return this
+	}
+	
+	alignCenterY(val) {
+		if (val instanceof Metaplex.solid) val = val.centerY
+		if (typeof val != "number") val = new Metaplex.vec3(val).y
+		
+		this.translate(0,val-this.centerY,0)
+		return this
+	}
+	
+	alignCenterZ(val) {
+		if (val instanceof Metaplex.solid) val = val.centerZ
+		if (typeof val != "number") val = new Metaplex.vec3(val).z
+		
+		this.translate(0,0,val-this.centerZ)
+		return this
+	}
+	
+	//Align Max
+	alignMaxX(val) {
+		if (val instanceof Metaplex.solid) val = val.maxX
+		if (typeof val != "number") val = new Metaplex.vec3(val).x
+		
+		this.translate(val-this.maxX,0,0)
+		return this
+	}
+	
+	alignMaxY(val) {
+		if (val instanceof Metaplex.solid) val = val.maxY
+		if (typeof val != "number") val = new Metaplex.vec3(val).y
+		
+		this.translate(0,val-this.maxY,0)
+		return this
+	}
+	
+	alignMaxZ(val) {
+		if (val instanceof Metaplex.solid) val = val.maxZ
+		if (typeof val != "number") val = new Metaplex.vec3(val).z
+		
+		this.translate(0,0,val-this.maxZ)
+		return this
+	}
+	
+	alignCenterXY(ob) {
+		this.alignCenterX(ob)
+		this.alignCenterY(ob)
+		return this
+	}
+	
+	alignCenterXYZ(ob) {
+		this.alignCenterX(ob)
+		this.alignCenterY(ob)
+		this.alignCenterZ(ob)
+		return this
+	}
+	
+	alignPoints(p1,p2) {
+		var delta = p2.subtract(p1)
+		this.translate(delta)
+	}
+	
+	copyTopOperation(ob) {
+		this.applyOperation(ob.lastOperation)
+		return this
+	}
+	
+	move(dx,dy,dz) {
+		return this.translate(dx,dy,dz)
+	}
+	
+	translate(a,b,c) {
+		var vec = new Metaplex.vec3(a,b,c)
+		this.applyOperation(new Metaplex.operations.translate(vec))
+		return this
+	}
+	
+	rotx(rx) {
+		return this.rotate(rx,0,0)
+	}
+	
+	roty(ry) {
+		return this.rotate(0,ry,0)
+	}
+	
+	rotz(rz) {
+		return this.rotate(0,0,rz)
+	}		
+	
+	rotate(rx,ry,rz) {
+		this.applyOperation(new Metaplex.operations.rotate(rx,ry,rz))			
+		return this
+	}
+	
+	scale(sx,sy,sz) {
+		if (typeof sy == "undefined") {
+			sy = sx
+			sz = sx
 		}
-		,getExtension(path) {
-			path = path.split(".")
-			return path.pop();
+		
+		this.applyOperation(new Metaplex.operations.scale(sx,sy,sz))
+		return this
+	}
+	
+	mirror(x,y,z) {
+		this.applyOperation(new Metaplex.operations.mirror(x,y,z))
+		return this
+	}
+	
+	mirrorX() {
+		return this.mirror(1,0,0)
+	}
+	
+	mirrorY() {
+		return this.mirror(0,1,0)
+	}
+	
+	mirrorZ() {
+		return this.mirror(0,0,1)
+	}
+	
+	multmatrix(matrix) {
+		this.applyOperation(new Metaplex.operations.multmatrix(matrix))
+		return this
+	}
+	
+	copy() {
+		var pointLocations = {}
+		var keys = Object.keys(this.points)
+		for (var key of keys) {
+			pointLocations[key] = this.points[key]
 		}
-		,radiansToDegrees(r) {
-			return r/(2*Math.PI)*360
+		
+		return new Metaplex.copy(this.json(),this.dimension,this.boundingBox,pointLocations)
+	}
+	
+	offset(amount,mode) {
+		this.applyOperation(new Metaplex.operations.offset(amount,mode))
+		return this
+	}
+	
+	minkowskiAdd(ob) {
+		this.applyOperation(new Metaplex.operations.minkowskiAdd(ob))
+		return this
+	}
+	
+	minkowskiSub(ob) {
+		this.applyOperation(new Metaplex.operations.minkowskiSub(ob,this.boundingBox))
+		return this
+	}
+	
+	
+	linear_extrude(height,twist,scale) {
+		if (this.dimension != 3) {
+			if (!scale) {
+				scale = 1
+			}
+			if (!twist) {
+				twist = 0
+			}
+			this.applyOperation(new Metaplex.operations.linear_extrude(height,twist,scale))
+			return this
+		} else {
+			Metaplex.log.error('Cannot use "linear_extrude" on a 3D object.')
 		}
-		,degreesToRadians(d) {
-			return d/360*2*Math.PI
+	}
+	
+	rotate_extrude(degrees) {
+		if (this.dimension != 3) {
+			this.applyOperation(new Metaplex.operations.rotate_extrude(degrees))
+			return this
+		} else {
+			Metaplex.log.error('Cannot use "rotate_extrude" on a 3D object.')
 		}
-		,slopeStretch(m) { //returns the factor by which the intersection of a wall rotated at slope <m> is larger than the thickness of the wall
-			return 1/(Math.sin(Math.atan(m)))
+	}
+	
+	display_debug() {
+		this.applyOperation(new Metaplex.operations.display_debug())
+		return this
+	}
+	
+	color(r,g,b,a) {
+		if (typeof r == "string") {
+			var name = r
+			var alpha = g
+			if (typeof alpha == "undefined") {
+				alpha = 1
+			}
+			this.applyOperation(new Metaplex.operations.colorname(name,alpha))
+		} else {
+			this.applyOperation(new Metaplex.operations.color(r,g,b,a))
 		}
-		,slopeIntersectHorizontal(m,thickness) { //returns the length of the intersection between a wall of <thickness> at slope <m> with a horizontal line
-			var theta = Math.atan(m)
-			return Math.abs(thickness/Math.sin(theta))
+		return this
+	}
+	
+	setFN(fn) {
+		this.applyOperation(new Metaplex.operations.setFN(fn))
+		this.fn = fn
+		return this
+	}
+	
+	add() {
+		for (var i = 0; i<arguments.length; i++) {
+			this.applyOperation(new Metaplex.operations.union(arguments[i]))
 		}
-		,slopeIntersectVertical(m,thickness) { //returns the length of the intersection between a wall of <thickness> at slope <m> with a vertical line
-			var theta = Math.atan(m)
-			return Math.abs(thickness/Math.cos(theta))
+		return this
+	}
+	
+	sub(ob) {
+		for (var i = 0; i<arguments.length; i++) {
+			this.applyOperation(new Metaplex.operations.difference(arguments[i]))
 		}
-		,checkValues(obj) {
-			var keys = Object.keys(obj)
-			for (var i = 0; i<keys.length; i++) {
-				if (typeof obj[keys[i]] == "undefined") {
-					Metaplex.log.error(keys[i]+" is undefined.")
-				}
+		return this
+	}
+	
+	and(ob) {
+		for (var i = 0; i<arguments.length; i++) {
+			this.applyOperation(new Metaplex.operations.intersection(arguments[i]))
+		}
+		return this
+	}
+	
+	json() {
+		var out = this.rootjson()
+		for (var i = 0; i<this.operations.length; i++) {
+			var op = this.operations[i]
+			out = op.json(out)
+		}
+		return out
+	}
+	
+	save(path,a,b) { 
+		//examples:		
+		// "blah.scad",{debug:true}
+		// "blah.js","Autodesk Shape Generator",{debug:true}
+		var options
+		var exporter
+		if (typeof a == "string") {
+			options = b
+			exporter = a
+		} else {
+			options = a
+		}
+		
+		Metaplex.save(this.json(),path,options,exporter)
+	}
+	
+	exportAs(exporter,options) {
+		return Metaplex.exportAs(this.json(),exporter,options)
+	}
+}
+
+Metaplex.utils = {
+	removeExtension(path) {
+		path = path.split(".")
+		path.pop();
+		return path.join(".")
+	}
+	,getExtension(path) {
+		path = path.split(".")
+		return path.pop();
+	}
+	,radiansToDegrees(r) {
+		return r/(2*Math.PI)*360
+	}
+	,degreesToRadians(d) {
+		return d/360*2*Math.PI
+	}
+	,slopeStretch(m) { //returns the factor by which the intersection of a wall rotated at slope <m> is larger than the thickness of the wall
+		return 1/(Math.sin(Math.atan(m)))
+	}
+	,slopeIntersectHorizontal(m,thickness) { //returns the length of the intersection between a wall of <thickness> at slope <m> with a horizontal line
+		var theta = Math.atan(m)
+		return Math.abs(thickness/Math.sin(theta))
+	}
+	,slopeIntersectVertical(m,thickness) { //returns the length of the intersection between a wall of <thickness> at slope <m> with a vertical line
+		var theta = Math.atan(m)
+		return Math.abs(thickness/Math.cos(theta))
+	}
+	,checkValues(obj) {
+		var keys = Object.keys(obj)
+		for (var i = 0; i<keys.length; i++) {
+			if (typeof obj[keys[i]] == "undefined") {
+				Metaplex.log.error(keys[i]+" is undefined.")
 			}
 		}
-		,copyBoundingBox(b) {
-			var minX = b[0][0]
-			var minY = b[0][1]
-			var minZ = b[0][2]
-			var maxX = b[1][0]
-			var maxY = b[1][1]
-			var maxZ = b[1][2]
-			
-			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
-		}
-		,copyObject(ob) {
-			return JSON.parse(JSON.stringify(ob))
-		}
+	}
+	,copyBoundingBox(b) {
+		var minX = b[0][0]
+		var minY = b[0][1]
+		var minZ = b[0][2]
+		var maxX = b[1][0]
+		var maxY = b[1][1]
+		var maxZ = b[1][2]
+		
+		return [[minX,minY,minZ],[maxX,maxY,maxZ]]
+	}
+	,copyObject(ob) {
+		return JSON.parse(JSON.stringify(ob))
 	}
 }
 
@@ -587,7 +641,15 @@ Metaplex.copy = class extends Metaplex.solid {
 	}
 }
 
+
+
+
 //TODO: work on rotation bounding box size increase build up
+/**
+Generic operations class.
+
+@constructor
+*/
 Metaplex.operation = class {
 	constructor() {
 		this.isLocationTransform = true
@@ -642,6 +704,10 @@ Metaplex.glmat4 = require("gl-mat4")
 Metaplex.operations = require("./operations.js")
 Metaplex.primitives = require("./primitives.js")
 
+//https://stackoverflow.com/questions/17080055/organizing-and-documenting-multi-file-javascript-projects
+/*
+@name Metaplex.vec3
+*/
 Metaplex.vec3 = require("./vec3.js")
 Metaplex.origin = new Metaplex.vec3(0,0,0)
 

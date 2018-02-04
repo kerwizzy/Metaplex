@@ -46,6 +46,23 @@ var primitives = {
 			this.rootboundingbox = [[-this.radius,-this.radius,0],[this.radius,this.radius,this.height]]
 		}
 		
+		setApothem(v) {
+			this.apothem = v;
+			return this;
+		}
+		
+		set apothem(v) {
+			this.radius = this.radius*(v/this.apothem)
+		}
+		
+		get apothem() {
+			if (this.fn) {
+				return this.radius*Math.cos(Math.PI/this.fn)
+			} else {
+				Metaplex.log.error("Cannot calculate apothem: number of sides not set.")
+			}
+		}
+		
 		chordHeight(length) { //calculate the sagitta of a chord of a given length
 			/*
 			(l/2)^2+(r-d)^2 = r^2
