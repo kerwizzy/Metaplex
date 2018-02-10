@@ -95,15 +95,15 @@ function reexecute(changedFilePaths) {
 		PROCESS.kill();
 	}
 	dependencyFiles = [] //Clear the dependency list.
-	PROCESS = child_process.fork(process.argv[2],process.argv.slice(3),{stdio:"inherit",env:{METAPLEX:METAPLEX_PATH}})
-	running = true
+	PROCESS = child_process.fork(process.argv[2],process.argv.slice(3),{stdio:"inherit",execArgv:["-r",__dirname+"/setup.js"].concat(nodeArgs),env:{METAPLEX:METAPLEX_PATH}})
+	RUNNING = true
 	PROCESS.on("exit",function(code,signal) {
 		if (code == 0) {
 			info("Process clean exit. Code = "+code+" Signal = "+signal+".")
 		} else {
 			err("Process error exit. Code = "+code+" Signal = "+signal+".")
 		}
-		running = false
+		RUNNING = false
 	})
 	PROCESS.on('message', function(data) {
 		parseMessage(data)
@@ -179,7 +179,7 @@ function getExtension(path) {
 if (process.argv[2] == "--help" || process.argv.length < 3) {
 	console.log(`A super simple script to watch for changes in a nodejs file and then reexecute it. Designed for use with metaplex. Written by @kerwizzy.
 	
-	Usage: metaplex-watch <path to js file>
+	Usage: metaplex-watch [<node arguments>] <path to js file>
 	
 	Commands:
 	ctrl-r: Reexecute the file.
@@ -187,7 +187,15 @@ if (process.argv[2] == "--help" || process.argv.length < 3) {
 	`)
 	
 } else {
-	addFile(path.resolve(process.argv[2]))
+	var nodeArgs = []
+	for (var i = 2; i<process.argv.length; i++) {
+		if (process.argv[i].substr(0,1) == "-") {
+			nodeArgs.push(process.argv[i])
+		} else {
+			break;
+		}
+	}
+	addFile(path.resolve(process.argv[i]))
 	reexecute();
 	setInterval(checkFiles,500)
 	

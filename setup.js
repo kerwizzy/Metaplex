@@ -1,0 +1,10 @@
+global.Metaplex = require(process.env.METAPLEX)
+global.vec3 = Metaplex.vec3
+global.mat4 = Metaplex.mat4
+global.primitives = Metaplex.primitives
+global.p = primitives
+global.Solid = Metaplex.solid
+global.Group = Metaplex.group
+global.Empty = Metaplex.empty
+global.depend = Metaplex.require
+global.D = 0.001
