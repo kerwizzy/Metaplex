@@ -194,6 +194,11 @@ class vec3 {
 		return new vec3(x,y,z)	
 	}
 	
+	equals(a,b,c) {
+		var vector = new vec3(a,b,c)
+		return vector.x === this.x && vector.y === this.y && vector.z === this.z
+	}
+	
 	/**
 	Multiply all the components of a vector by a constant. Returns a new vector.
 	
