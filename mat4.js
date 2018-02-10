@@ -15,7 +15,7 @@ class mat4 {
 	}
 	
 	clone() {
-		return glmat4.clone(this.data)
+		return new mat4(this.data.slice(0))
 	}
 	
 	multiply(mat) {
@@ -91,13 +91,12 @@ class mat4 {
 		point = new vec3(point).arr()
 		var up = [0,0,1]
 		glmat4.lookAt(out,eye,point,up)
-		var inverted = new mat4(out).invert()
-		return this.multiply(inverted.scale(-1,-1,-1))
+		return this.multiply(new mat4(out).invert().scale(-1,-1,-1))
 	}
 	
 	invert() {
 		var out = []
-		glmat4.invert(out,this.clone())
+		glmat4.invert(out,this.data.slice(0))
 		return new mat4(out)
 	}
 	
@@ -141,6 +140,33 @@ class mat4 {
 		var out = []
 		glmat4.invert(out,this.data)
 		return new mat4(out)
+	}
+	
+	swapXY() {
+		return this.multiply([
+			 0,1,0,0
+			,1,0,0,0
+			,0,0,1,0
+			,0,0,0,1
+		])
+	}
+	
+	swapYZ() {
+		return this.multiply([
+			 0,1,0,0
+			,1,0,0,0
+			,0,0,1,0
+			,0,0,0,1
+		])
+	}
+	
+	swapXZ() {
+		return this.multiply([
+			 0,1,0,0
+			,1,0,0,0
+			,0,0,1,0
+			,0,0,0,1
+		])
 	}
 	
 	arr() {
