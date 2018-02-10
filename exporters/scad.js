@@ -66,6 +66,11 @@ var operators = {
 			return "rotate_extrude(angle="+o.angle+genFnParam(d)+",convexity=2) {\n"+parse(o,l,d)+"\n}"
 		}
 	}
+	,"project":{
+		parse(o,l,d) {
+			return "projection(cut="+o.cut+") "+parse(o,l,d)
+		}
+	}
 	,"cube":{
 		parse(o,l,d) {
 			return "cube("+o.size+")"
