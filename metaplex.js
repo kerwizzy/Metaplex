@@ -707,6 +707,10 @@ Metaplex.operation = class {
 		}
 	}
 	
+	transformDimension(d) {
+		return d
+	}
+	
 	transformPoint(point) {
 		var matrix = this.matrix
 		if (matrix) {

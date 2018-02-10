@@ -15,10 +15,6 @@ module.exports = {
 			return new mat4().translate(this.delta)
 		}
 		
-		transformDimension(d) {
-			return d
-		}
-		
 		json(child) {
 			return {
 				type:"translate"
@@ -42,10 +38,6 @@ module.exports = {
 		
 		get matrix() {
 			return new mat4().rotateMultiple(Metaplex.utils.degreesToRadians(this.x),Metaplex.utils.degreesToRadians(this.y),Metaplex.utils.degreesToRadians(this.z))
-		}
-		
-		transformDimension(d) {
-			return d
 		}
 
 		json(child) {
@@ -71,10 +63,6 @@ module.exports = {
 		
 		get matrix() {
 			return new mat4().scale(this.x,this.y,this.z)
-		}
-		
-		transformDimension(d) {
-			return d
 		}		
 		
 		json(child) {
@@ -159,10 +147,6 @@ module.exports = {
 			this.ob.applyParentOperation(operation)
 		}
 		
-		transformDimension(d) {
-			return d
-		}
-		
 		transformPoint(p) {
 			return p.slice(0);
 		}
@@ -221,10 +205,6 @@ module.exports = {
 			this.ob.applyParentOperation(operation)
 		}
 		
-		transformDimension(d) {
-			return d
-		}
-		
 		transformPoint(p) {
 			return p.slice(0);
 		}
@@ -256,10 +236,6 @@ module.exports = {
 		
 		applyToChildren(operation) {
 			this.ob.applyParentOperation(operation)
-		}
-		
-		transformDimension(d) {
-			return d
 		}
 		
 		transformPoint(p) {
@@ -440,10 +416,6 @@ module.exports = {
 			this.ob.applyParentOperation(operation)
 		}
 		
-		transformDimension(d) {
-			return d
-		}
-		
 		transformPoint(p) {
 			return p.slice(0);
 		}
@@ -504,10 +476,6 @@ module.exports = {
 		
 		applyToChildren(operation) {
 			this.ob.applyParentOperation(operation)
-		}
-		
-		transformDimension(d) {
-			return d
 		}
 		
 		transformPoint(p) {
@@ -572,10 +540,6 @@ module.exports = {
 			Metaplex.utils.checkValues(this)
 		}
 		
-		transformDimension(d) {
-			return d
-		}
-		
 		transformPoint(p) {
 			return p.slice(0);
 		}
@@ -612,10 +576,6 @@ module.exports = {
 			Metaplex.utils.checkValues(this)
 		}
 		
-		transformDimension(d) {
-			return d
-		}
-		
 		transformPoint(p) {
 			return p.slice(0);
 		}
@@ -647,10 +607,6 @@ module.exports = {
 			Metaplex.utils.checkValues(this)
 		}
 		
-		transformDimension(d) {
-			return d
-		}
-		
 		transformPoint(p) {
 			return p.slice(0);
 		}
@@ -679,10 +635,6 @@ module.exports = {
 			this.isLocationTransform = false
 			
 			Metaplex.utils.checkValues(this)
-		}
-		
-		transformDimension(d) {
-			return d
 		}
 		
 		transformPoint(p) {
