@@ -171,16 +171,19 @@ Metaplex.solid = class {
 		if (val) {
 			this.points[name] = new Metaplex.vec3(val)
 		}
+		return this
 	}
 	
 	removePoint(name) {
 		delete this.points[name]
 		delete this.pointData[name]
+		return this
 	}
 
 	setOrigin(a,b,c) {
 		var point = new Metaplex.vec3(a,b,c).arr();
 		this.points.origin = point
+		return this
 	}
 	
 	get origin() {
@@ -375,8 +378,14 @@ Metaplex.solid = class {
 		return this.rotate(0,0,rz)
 	}		
 	
-	rotate(rx,ry,rz) {
-		this.applyOperation(new Metaplex.operations.rotate(rx,ry,rz))			
+	rotate(rx,ry,rz,origin) {
+		if (origin) {
+			this.alignPoints(origin.clone(),Metaplex.origin)
+		}
+		this.applyOperation(new Metaplex.operations.rotate(rx,ry,rz))
+		if (origin) {
+			this.alignPoints(Metaplex.origin,origin)
+		}		
 		return this
 	}
 	
@@ -459,6 +468,15 @@ Metaplex.solid = class {
 			return this
 		} else {
 			Metaplex.log.error('Cannot use "rotate_extrude" on a 3D object.')
+		}
+	}
+	
+	project(plane,cut) {
+		if (this.dimension == 3) {
+			this.applyOperation(new Metaplex.operations.project(plane,cut))
+			return this
+		} else {
+			Metaplex.log.error('Cannot use "project" on a 2D object.')
 		}
 	}
 	
@@ -693,6 +711,8 @@ Metaplex.operation = class {
 		var matrix = this.matrix
 		if (matrix) {
 			return matrix.transform(point);		
+		} else {
+			return point.slice(0)
 		}
 	}
 }
@@ -710,6 +730,12 @@ Metaplex.primitives = require("./primitives.js")
 */
 Metaplex.vec3 = require("./vec3.js")
 Metaplex.origin = new Metaplex.vec3(0,0,0)
+Metaplex.plane = { //For use with Solid.project
+	xy:new Metaplex.vec3(0,0,1)
+	,yz:new Metaplex.vec3(1,0,0)
+	,xz:new Metaplex.vec3(0,1,0)
+}
+
 
 Metaplex.mat4 = require("./mat4.js")
 

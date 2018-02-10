@@ -1,5 +1,6 @@
 var Metaplex = require("./metaplex.js")
 var mat4 = require("./mat4.js")
+var vec3 = require("./vec3.js")
 
 module.exports = {
 	translate:class extends Metaplex.operation {
@@ -383,6 +384,45 @@ module.exports = {
 				,child:child
 			}			
 		}		
+	}
+	
+	,project:class extends Metaplex.operation {
+		constructor(plane,cut) { //Plane should be a vector defining a plane via a normal.
+			super()
+			this.plane = new vec3(plane).normalize();
+			this.cut = cut || false;
+		}
+		
+		transformDimension(d) {
+			return 2
+		}
+		
+		transformBoundingBox(b) {
+			var minX = b[0][0]
+			var minY = b[0][1]
+			var minZ = b[0][2]
+			var maxX = b[1][0]
+			var maxY = b[1][1]
+			var maxZ = b[1][2]
+			
+			return [[minX,minY,0],[maxX,maxY,0]]
+		}
+		
+		json(child) {
+			var matrix = new mat4()
+			if (!this.plane.equals(0,0,1)) {
+				matrix = matrix.pointTowards(new vec3(0,0,0),this.plane)
+			}
+			return {				
+				type:"project"
+				,cut:this.cut
+				,child:{
+					type:"multmatrix"
+					,matrix:matrix.arr()
+					,child:child
+				}
+			}
+		}
 	}
 	
 	,minkowskiAdd:class extends Metaplex.operation {
