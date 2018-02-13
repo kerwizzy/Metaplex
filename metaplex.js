@@ -556,6 +556,20 @@ Metaplex.solid = class {
 	}
 }
 
+Metaplex.CompositeSolid = class extends Metaplex.solid {
+	constructor() {
+		super();
+	}
+	
+	get rootboundingbox() {
+		return this.solid().boundingBox;
+	}
+
+	rootjson() {
+		return this.solid().json();
+	}
+}
+
 Metaplex.utils = {
 	removeExtension(path) {
 		path = path.split(".")
