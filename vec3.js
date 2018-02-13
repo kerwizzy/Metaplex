@@ -261,6 +261,10 @@ class vec3 {
 		return new vec3(x,y,z).setNullMask(m1&m2)
 	}
 	
+	sub(vector) {
+		return this.subtract(vector)
+	}
+	
 	/**
 	Returns a new vector equal to this vector * another
 	
@@ -280,6 +284,18 @@ class vec3 {
 		z *= vector.z
 		
 		return new vec3(x,y,z).setNullMask(m1&m2)
+	}
+	
+	mirrorX() {
+		return new vec3(-this.x,this.y,this.z)
+	}
+	
+	mirrorY() {
+		return new vec3(this.x,-this.y,this.z)
+	}
+	
+	mirrorZ() {
+		return new vec3(this.x,this.y,-this.z)
 	}
 	
 	/**
@@ -383,6 +399,10 @@ class vec3 {
 		return new vec3(this.x,this.y,null)
 	}
 	
+	get yx() {
+		return new vec3(this.y,this.x,null)
+	}
+	
 	/**
 	Returns a new vector, with only the y and z components of this vector and null x
 	
@@ -390,6 +410,10 @@ class vec3 {
 	*/
 	get yz() {
 		return new vec3(null,this.y,this.z)
+	}
+	
+	get zy() {
+		return new vec3(null,this.z,this.y)
 	}
 	
 	/**
@@ -401,11 +425,35 @@ class vec3 {
 		return new vec3(this.x,null,this.z)
 	}
 	
+	get zx() {
+		return new vec3(this.z,null,this.x)
+	}
+	
 	/**
 	Equivalent to [vec3.clone]{@link vec3#clone}
 	*/
 	get xyz() {
 		return this.clone()
+	}
+	
+	get zyx() {
+		return new vec3(this.z,this.y,this.x)
+	}
+	
+	get zxy() {
+		return new vec3(this.z,this.x,this.y)
+	}
+	
+	get xzy() {
+		return new vec3(this.x,this.z,this.y)
+	}
+	
+	get yxz() {
+		return new vec3(this.y,this.x,this.z)
+	}
+	
+	get yzx() {
+		return new vec3(this.y,this.z,this.x)
 	}
 }
 
