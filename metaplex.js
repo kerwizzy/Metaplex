@@ -348,7 +348,7 @@ Metaplex.solid = class {
 	
 	alignPoints(p1,p2) {
 		var delta = p2.subtract(p1)
-		this.translate(delta)
+		return this.translate(delta)
 	}
 	
 	copyTopOperation(ob) {
