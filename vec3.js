@@ -455,6 +455,22 @@ class vec3 {
 	get yzx() {
 		return new vec3(this.y,this.z,this.x)
 	}
+	
+	get angle() {
+		return this.xyAngle
+	}
+	
+	get xyAngle() {
+		return Metaplex.utils.radiansToDegrees(Math.atan2(this.y,this.x))
+	}
+	
+	get yzAngle() {
+		return Metaplex.utils.radiansToDegrees(Math.atan2(this.z,this.y))
+	}
+	
+	get xzAngle() {
+		return Metaplex.utils.radiansToDegrees(Math.atan2(this.z,this.x))
+	}
 }
 
 module.exports = vec3
