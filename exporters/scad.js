@@ -1,7 +1,7 @@
 const fs = require("fs")
 const path = require("path")
 const colors = require("colors")
-
+var vec3 = require("../vec3.js")
 
 var headers = []
 
@@ -112,6 +112,39 @@ var operators = {
 	,"polygon":{
 		parse(o,l,d) {
 			return "polygon("+JSON.stringify(o.points)+")"
+		}
+	}
+	,"polyhedron":{
+		parse(o,l,d) {
+			var points = []
+			var faces = [] //Array of indexes to points array
+			
+			for (var i = 0; i<o.faces.length; i++) {
+				var face = o.faces[i]
+				for (var j = 0; j<face.length; j++) {
+					var point = new vec3(face[j])
+					var idx = points.findIndex(p => p.equals(point))
+					if (idx == -1) {
+						points.push(point)
+					}
+				}
+			}
+			
+			for (var i = 0; i<o.faces.length; i++) {
+				var face = o.faces[i]
+				faces[i] = []
+				for (var j = 0; j<face.length; j++) {
+					var point = new vec3(face[j])
+					var idx = points.findIndex(p => p.equals(point))
+					faces[i][j] = idx
+				}
+			}
+			
+			points = points.map(p => "["+p.arr()+"]")
+			faces = faces.map(f => "["+f+"]")
+
+			
+			return "polyhedron(points=["+points+"],faces=["+faces+"],convexity=2)"
 		}
 	}
 	,"text":{

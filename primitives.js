@@ -395,6 +395,61 @@ var primitives = {
 		}
 		
 	}
+	,polyhedron:class extends Metaplex.solid {
+		constructor(a,b) { //TODO: allow calling in the OpenSCAD format too
+			super();
+			/*
+			new  polyhedron(faces)
+			
+				faces = array of face objects
+				
+				face format = array of points (either vec3s or [x,y,z])
+			new polyhedron(points,faces)
+				points = array of vecs
+				faces = array of indexes into points
+			*/
+			
+			var faces;
+			if (!b) {
+				faces = a
+			} else {
+				faces = b.map(face => face.map(idx => a[idx]))
+			}		
+			
+			
+			this.faces = faces
+			Metaplex.utils.checkValues(this)
+			this.cleanFaces()
+		}
+
+		cleanFaces() { //convert everything to vec3s 
+			for (var i = 0; i<this.faces.length; i++) {
+				var face = this.faces[i]
+				if (!Array.isArray(this.faces[i])) {
+					Metaplex.log.error("Face "+i+" is not an array.")
+				} else {
+					for (var j = 0; j<face.length; j++) {
+						face[j] = new vec3(face[j])
+					}
+				}
+			}
+		}
+		
+		rootjson() {
+			var faces = [] //array of [x,y,z] arrays
+			for (var i = 0; i<this.faces.length; i++) {
+				var face = this.faces[i]
+				faces[i] = []
+				for (var j = 0; j<face.length; j++) {
+					faces[i][j] = face[j].arr()
+				}
+			}
+			return {
+				type:"polyhedron"
+				,faces:faces				
+			}
+		}
+	}
 	,text:class extends Metaplex.solid {
 		constructor(text,size,font,options) {
 			super();
@@ -408,10 +463,9 @@ var primitives = {
 			this.language = options.language || "en"
 			this.script = options.script || "latin"
 			this.rootdimension = 2
-			//TODO: make root bounding box
+			this.rootboundingbox = [[0,0,0],[0,0,0]] //TODO
 			Metaplex.utils.checkValues(this)
 		}	
-		
 		
 		
 		rootjson() {
