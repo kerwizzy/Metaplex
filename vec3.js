@@ -429,6 +429,18 @@ class vec3 {
 		return new vec3(this.z,null,this.x)
 	}
 	
+	get vecx() {
+		return new vec3(this.x,null,null)
+	}
+	
+	get vecy() {
+		return new vec3(null,this.y,null)
+	}
+	
+	get vecz() {
+		return new vec3(null,null,this.z)
+	}
+	
 	/**
 	Equivalent to [vec3.clone]{@link vec3#clone}
 	*/
