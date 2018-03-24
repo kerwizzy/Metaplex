@@ -512,14 +512,14 @@ Metaplex.solid = class {
 		return this
 	}
 	
-	sub(ob) {
+	sub() {
 		for (var i = 0; i<arguments.length; i++) {
 			this.applyOperation(new Metaplex.operations.difference(arguments[i]))
 		}
 		return this
 	}
 	
-	and(ob) {
+	and() {
 		for (var i = 0; i<arguments.length; i++) {
 			this.applyOperation(new Metaplex.operations.intersection(arguments[i]))
 		}
@@ -561,12 +561,37 @@ Metaplex.CompositeSolid = class extends Metaplex.solid {
 		super();
 	}
 	
+	transformedSolid() {
+		var solid = this.solid()
+		for (var i = 0; i<this.operations.length; i++) {
+			solid.applyOperation(this.operations[i])
+		}
+		
+		for (var i = 0; i<this.parentOperations.length; i++) {
+			solid.applyParentOperation(this.parentOperations[i])
+		}
+		
+		return solid
+	}
+	
+	rootjson() {
+		return this.solid.json();
+	}
+	
 	get rootboundingbox() {
 		return this.solid().boundingBox;
 	}
+	
+	get boundingBox() {
+		return this.transformedSolid().boundingBox;
+	}
+	
+	get elements() {
+		return this.transformedSolid().elements
+	}
 
-	rootjson() {
-		return this.solid().json();
+	json() {
+		return this.transformedSolid().json();
 	}
 }
 
@@ -621,18 +646,26 @@ Metaplex.utils = {
 }
 
 
-/*
-At the moment, Metaplex.group and Metaplex.empty are
-equivalent, but more features a planned to be added
-to Metaplex.group in the future. Originally
-Metaplex.group was a polyfill for older versions of
-Metaplex and also some constructions involving
-loops, etc that are awkward to define other ways.
-*/
 Metaplex.group = class extends Metaplex.solid {
 	constructor() {
 		super()
 		this.rootboundingbox = [[0,0,0],[0,0,0]]
+		this.elements = {}
+	}
+	
+	add(ob,name) {
+		this.elements[name] = ob
+		super.add(ob)
+	}
+	
+	sub(ob,name) {
+		this.elements[name] = ob
+		super.sub(ob)
+	}
+	
+	and(ob,name) {
+		this.elements[name] = ob
+		super.and(ob)
 	}
 	
 	rootjson() {
