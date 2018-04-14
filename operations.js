@@ -262,11 +262,11 @@ module.exports = {
 			var minX = Math.max(minXa,minXb) //Notice this is Math.max, not min.
 			var maxX = Math.min(maxXa,maxXb)
 			
-			var minY = Math.max(minYa,maxYb)
-			var maxY = Math.min(minYa,maxYb)
+			var minY = Math.max(minYa,minYb)
+			var maxY = Math.min(maxYa,maxYb)
 			
-			var minZ = Math.max(minZa,maxZb)
-			var maxZ = Math.min(minZa,maxZb)
+			var minZ = Math.max(minZa,minZb)
+			var maxZ = Math.min(maxZa,maxZb)
 			
 			return [[minX,minY,minZ],[maxX,maxY,maxZ]]
 		}
