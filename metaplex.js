@@ -575,7 +575,7 @@ Metaplex.CompositeSolid = class extends Metaplex.solid {
 	}
 	
 	rootjson() {
-		return this.solid.json();
+		return this.solid().json();
 	}
 	
 	get rootboundingbox() {
